@@ -1,0 +1,115 @@
+.card {
+  width: 100%;
+  max-width: 560px;
+  padding: 20px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-hairline);
+  background: var(--color-canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.id {
+  margin-left: auto;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.goal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.374px;
+}
+
+.meta {
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--color-muted);
+}
+
+.reason {
+  font-size: 14px;
+  line-height: 1.43;
+  letter-spacing: -0.224px;
+  color: var(--color-body);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-parchment);
+}
+
+.n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--color-canvas);
+  font-size: 12px;
+}
+
+.itemTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  letter-spacing: -0.224px;
+  color: var(--color-ink);
+}
+
+.done {
+  color: var(--color-muted);
+}
+
+.cat {
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--color-muted);
+}
+
+.removed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.removedLine {
+  font-size: 14px;
+  letter-spacing: -0.224px;
+  color: var(--color-muted);
+}
+
+.strike {
+  text-decoration: line-through;
+}

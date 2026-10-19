@@ -1,0 +1,59 @@
+.card {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--color-parchment);
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+
+.roleUser,
+.roleAgent {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.12px;
+}
+
+.roleUser {
+  color: var(--color-ink);
+}
+
+.roleAgent {
+  color: var(--color-muted);
+}
+
+.text {
+  font-size: 14px;
+  line-height: 1.43;
+  letter-spacing: -0.224px;
+  color: var(--color-body);
+}
+
+.input {
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
+}

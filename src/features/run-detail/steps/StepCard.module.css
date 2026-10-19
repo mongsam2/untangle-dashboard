@@ -1,0 +1,148 @@
+.server {
+  background: var(--color-parchment);
+  border-color: var(--color-hairline);
+  border-style: dashed;
+}
+
+.selected {
+  border-style: solid;
+  border-color: var(--color-focus);
+  box-shadow: inset 0 0 0 1px var(--color-focus);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 24px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.374px;
+  color: var(--color-ink);
+}
+
+.titleServer {
+  color: var(--color-body);
+}
+
+.meta {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.body {
+  padding: 0 24px 20px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kindLabel {
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--color-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--color-body);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summaryBox {
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--color-parchment);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summaryTitle {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.224px;
+}
+
+.summaryText {
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
+}
+
+.next {
+  font-size: 14px;
+  letter-spacing: -0.224px;
+  color: var(--color-body);
+}
+
+.error {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--failure-bg);
+  color: var(--failure-fg);
+  font-size: 14px;
+  letter-spacing: -0.224px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.errorCode {
+  font-weight: 600;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.json {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note {
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
+  color: var(--color-body);
+}
+
+.blocked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.blockedTool {
+  color: var(--color-ink);
+}
