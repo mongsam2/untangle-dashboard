@@ -1,0 +1,84 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 32px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.224px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.ring {
+  position: relative;
+  flex: none;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+}
+
+.hole {
+  position: absolute;
+  inset: 28px;
+  border-radius: 50%;
+  background: var(--color-canvas);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.total {
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.unit {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.items {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto 48px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  color: var(--color-muted);
+}
+
+.pct {
+  text-align: right;
+}

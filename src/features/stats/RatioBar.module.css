@@ -1,0 +1,23 @@
+.track {
+  display: flex;
+  gap: 2px;
+  height: 18px;
+}
+
+.seg {
+  border-radius: 4px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 14px;
+  letter-spacing: -0.224px;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
