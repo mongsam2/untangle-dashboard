@@ -4,7 +4,7 @@ import { StepIcon } from '../../../components/StepIcon';
 import { RUN_STATUS, stepTone } from '../../../lib/status';
 import s from './AppBubble.module.css';
 import { ProposalCard } from './ProposalCard';
-import { collectTitles, proposalCardOf } from './proposalCard';
+import { collectTitles, proposalCardOf } from './proposalCardModel';
 
 // "최종 응답" 카드: 사용자가 받은 말풍선·제안서·선택지와 화면 표시·실행 결과.
 export function AppBubble({ detail }: { detail: RunDetailResponse }) {

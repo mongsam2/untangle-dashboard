@@ -1,6 +1,6 @@
 import { Badge } from '../../../components/Badge';
 import s from './ProposalCard.module.css';
-import type { ProposalCardModel } from './proposalCard';
+import type { ProposalCardModel } from './proposalCardModel';
 
 // 응답의 proposal 화면을 앱에서 보이는 제안서 카드 모양으로 그린다.
 export function ProposalCard({ card }: { card: ProposalCardModel }) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MOCK_RUNS } from '../../../api/mock/fixtures';
 import type { ProposalView } from '../../../api/types';
-import { collectTitles, proposalCardOf } from './proposalCard';
+import { collectTitles, proposalCardOf } from './proposalCardModel';
 
 function proposalOf(caseId: string) {
   const d = MOCK_RUNS.find((x) => x.run.test_case_id === caseId)!;
