@@ -87,7 +87,32 @@ describe('목록 API 흉내', () => {
   it('조건이 바뀐 커서는 거절한다', () => {
     const cursor = encodeCursor(20, { source: 'test' });
     expect(() => h.listRuns({ source: 'real', cursor })).toThrow(ApiError);
-    expect(() => h.listRuns({ cursor: 'not-base64!' })).toThrow(ApiError);
+    expect(() => h.listRuns({ cursor: 'not-base64!' })).toThrowError(expect.objectContaining({ status: 422, code: 'invalid_request' }));
+  });
+
+  it('범위를 벗어난 limit은 서버처럼 거절한다', () => {
+    expect(() => h.listRuns({ limit: 101 })).toThrowError(expect.objectContaining({ status: 422 }));
+    expect(() => h.listRuns({ limit: 0 })).toThrowError(expect.objectContaining({ status: 422 }));
+  });
+
+  it('요약 합계는 목록 전체를 더한 값과 같다', () => {
+    const { summary, items } = h.listRuns({ limit: 100 });
+    const total = (f: (r: (typeof items)[number]) => number) => items.reduce((a, r) => a + f(r), 0);
+    expect(summary.total_input_tokens).toBe(total((r) => r.input_tokens));
+    expect(summary.total_cached_tokens).toBe(total((r) => r.cached_tokens));
+    expect(summary.total_model_calls).toBe(total((r) => r.model_calls));
+    expect(summary.total_tokens).toBe(total((r) => r.input_tokens + r.output_tokens));
+    expect(summary.max_duration_ms).toBe(Math.max(...items.map((r) => r.duration_ms)));
+    expect(summary.model_runs + 8).toBe(summary.runs);
+    expect(summary.tool_failed_runs + summary.outcome_unknown_runs + summary.error_runs).toBe(summary.attention_runs);
+    const costs = items.flatMap((r) => (r.cost_usd === null ? [] : [r.cost_usd]));
+    // 서버의 avg(cost_usd)처럼 비용이 없는 요청은 평균에서 뺀다.
+    expect(summary.avg_cost_usd).toBeCloseTo(costs.reduce((a, c) => a + c, 0) / costs.length);
+  });
+
+  it('조건에 맞는 기록이 없으면 합계 0, 평균·최대 null', () => {
+    const s = h.listRuns({ source: 'real', path: 'accept_direct' }).summary;
+    expect(s).toMatchObject({ runs: 0, total_tokens: 0, max_duration_ms: null, avg_model_calls: null, total_cost_usd: null });
   });
 });
 
@@ -100,13 +125,14 @@ describe('상세·케이스·집계 흉내', () => {
   it('케이스는 실행 4건과 상태별 건수', () => {
     const c = h.getCase('T21');
     expect(c.runs).toHaveLength(4);
-    expect(c.stats).toMatchObject({ runs: 4, outcome_unknown: 4, normal: 0 });
+    expect(c.stats).toMatchObject({ runs: 4, outcome_unknown: 4, normal: 0, avg_model_calls: 4 });
     expect(c.stats.last_started_at).toBe(c.runs[0]!.started_at);
   });
 
   it('집계: 도구·비율·케이스', () => {
     const st = h.getStats({});
-    expect(st.token_samples).toHaveLength(50);
+    // 서버처럼 모델을 부른 요청만 담는다(직행 8건 제외).
+    expect(st.token_samples).toHaveLength(42);
     const search = st.tools.find((t) => t.tool_name === 'search_goals')!;
     // 케이스 7개 × 4회 + 실제 요청 4건 + 오류 요청 2건
     expect(search.calls).toBe(34);
@@ -115,7 +141,7 @@ describe('상세·케이스·집계 흉내', () => {
     expect(st.tools.find((t) => t.tool_name === 'set_completion')).toMatchObject({ calls: 8, unknown: 4 });
     expect(st.statuses.map((s) => s.value)).toEqual(['normal', 'tool_failed', 'outcome_unknown', 'error']);
     expect(st.statuses.reduce((a, s) => a + s.ratio, 0)).toBeCloseTo(1);
-    expect(st.cases.map((c) => c.test_case_id)).toEqual(['T10', 'T20', 'T18', 'T24', 'T05', 'T03', 'T34', 'T21', 'T15', 'T01', 'T19']);
+    expect(st.cases.map((c) => c.test_case_id)).toEqual(['T01', 'T03', 'T05', 'T10', 'T15', 'T18', 'T19', 'T20', 'T21', 'T24', 'T34']);
     expect(st.tool_kinds.find((k) => k.value === 'query')!.count).toBe(st.tools.filter((t) => t.tool_kind === 'query').reduce((a, t) => a + t.calls, 0));
   });
 

@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { api } from './client';
-import type { RunFilters, RunListItem } from './types';
+import type { RunFilters } from './types';
 
 const PAGE_SIZE = 100;
 
@@ -12,7 +12,7 @@ export function useRuns(filters: RunFilters) {
     queryKey: ['runs', filterKey(filters)],
     queryFn: ({ pageParam }) => api.listRuns({ ...filters, limit: PAGE_SIZE, cursor: pageParam }),
     initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.next_cursor,
+    getNextPageParam: (last) => last.next_cursor ?? null,
     placeholderData: keepPreviousData,
   });
 }
@@ -23,24 +23,6 @@ export function useRunSummary(filters: RunFilters) {
     queryKey: ['runs-summary', filterKey(filters)],
     queryFn: () => api.listRuns({ ...filters, limit: 1 }),
     select: (r) => r.summary,
-    placeholderData: keepPreviousData,
-  });
-}
-
-/** 집계 API에 없는 값(캐시 적중률·최대 소요시간·케이스별 평균 모델 호출)을 계산하려고 목록 전체를 받는다. */
-export function useAllRuns(filters: RunFilters) {
-  return useQuery({
-    queryKey: ['runs-all', filterKey(filters)],
-    queryFn: async () => {
-      const items: RunListItem[] = [];
-      let cursor: string | null = null;
-      do {
-        const page = await api.listRuns({ ...filters, limit: PAGE_SIZE, cursor });
-        items.push(...page.items);
-        cursor = page.next_cursor ?? null;
-      } while (cursor);
-      return items;
-    },
     placeholderData: keepPreviousData,
   });
 }

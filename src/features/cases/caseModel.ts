@@ -7,12 +7,11 @@ export interface CaseMeta {
   alert?: boolean;
 }
 
-/** 케이스 인스펙터 머리의 수치. 평균 모델 호출은 CaseStat에 없어 실행 목록(최근 100건)에서 구한다. */
-export function caseMeta({ stats, runs }: CaseDetailResponse): CaseMeta[] {
-  const avgModel = runs.length ? runs.reduce((a, r) => a + r.model_calls, 0) / runs.length : 0;
+/** 케이스 인스펙터 머리의 수치. 평균은 서버가 케이스의 전체 실행으로 계산한 CaseStat 값이다. */
+export function caseMeta({ stats }: CaseDetailResponse): CaseMeta[] {
   const meta: CaseMeta[] = [
     { label: '실행 횟수', value: stats.runs + '회' },
-    { label: '평균 모델 호출', value: avgModel.toFixed(1) + '회' },
+    { label: '평균 모델 호출', value: (stats.avg_model_calls ?? 0).toFixed(1) + '회' },
     { label: '평균 도구 호출', value: (stats.avg_tool_calls ?? 0).toFixed(1) + '회' },
     { label: '평균 토큰', value: fmtInt(stats.avg_total_tokens ?? 0) },
     { label: '평균 비용', value: fmtCost(stats.avg_cost_usd) },

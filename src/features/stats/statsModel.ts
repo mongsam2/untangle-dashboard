@@ -1,4 +1,4 @@
-import type { CaseStat, RunListItem, RunPath, RunStatus, RunSummaryStats, ShareStat, StatsResponse, ToolKind, ToolStat } from '../../api/types';
+import type { CaseStat, RunPath, RunStatus, RunSummaryStats, ShareStat, StatsResponse, ToolKind, ToolStat } from '../../api/types';
 import { caseTitle } from '../../lib/cases';
 import { fmtCost, fmtInt, fmtMs } from '../../lib/format';
 import { KIND, rampColor, toolOrderIndex } from '../../lib/kinds';
@@ -129,19 +129,15 @@ export function shareBlocks(stats: StatsResponse): { title: string; segs: ShareS
   ];
 }
 
-/** 집계 화면 KPI. 캐시 적중률과 최대 소요시간은 요약 API에 없어 목록 전체에서 계산한다. */
-export function statTiles(summary: RunSummaryStats | undefined, all: RunListItem[] | undefined): KpiTile[] {
-  const runs = summary?.runs ?? 0;
-  const models = Math.round((summary?.avg_model_calls ?? 0) * runs);
-  const tools = Math.round((summary?.avg_tool_calls ?? 0) * runs);
-  const input = all?.reduce((a, r) => a + r.input_tokens, 0) ?? 0;
-  const cached = all?.reduce((a, r) => a + r.cached_tokens, 0) ?? 0;
-  const maxMs = Math.max(0, ...(all ?? []).map((r) => r.duration_ms));
+/** 집계 화면 KPI. 합계·최대값·캐시 입력은 모두 서버 요약 수치(필터 조건 전체)에서 온다. */
+export function statTiles(summary: RunSummaryStats | undefined): KpiTile[] {
+  const input = summary?.total_input_tokens ?? 0;
+  const cached = summary?.total_cached_tokens ?? 0;
   return [
-    { label: '평균 모델 호출', value: (summary?.avg_model_calls ?? 0).toFixed(1) + '회', sub: '총 ' + models + '회' },
-    { label: '평균 도구 호출', value: (summary?.avg_tool_calls ?? 0).toFixed(1) + '회', sub: '총 ' + tools + '회' },
+    { label: '평균 모델 호출', value: (summary?.avg_model_calls ?? 0).toFixed(1) + '회', sub: '총 ' + fmtInt(summary?.total_model_calls ?? 0) + '회' },
+    { label: '평균 도구 호출', value: (summary?.avg_tool_calls ?? 0).toFixed(1) + '회', sub: '총 ' + fmtInt(summary?.total_tool_calls ?? 0) + '회' },
     { label: '캐시 적중률', value: (input ? (cached / input) * 100 : 0).toFixed(1) + '%', sub: '캐시 입력 ' + fmtInt(cached) + ' 토큰' },
-    { label: '평균 소요시간', value: fmtMs(Math.round(summary?.avg_duration_ms ?? 0)), sub: '최대 ' + fmtMs(maxMs) },
+    { label: '평균 소요시간', value: fmtMs(Math.round(summary?.avg_duration_ms ?? 0)), sub: '최대 ' + fmtMs(summary?.max_duration_ms ?? 0) },
   ];
 }
 
@@ -156,15 +152,14 @@ export interface CaseRow {
   unknown: number;
 }
 
-/** 케이스 표. 평균 모델 호출은 CaseStat에 없어 목록 전체에서 계산한다. */
-export function caseRows(cases: CaseStat[], all: RunListItem[] | undefined): CaseRow[] {
+/** 케이스 표. 평균은 서버가 케이스의 전체 실행으로 계산한 값이다. */
+export function caseRows(cases: CaseStat[]): CaseRow[] {
   return cases.map((c) => {
-    const rs = all?.filter((r) => r.test_case_id === c.test_case_id) ?? [];
     return {
       id: c.test_case_id,
       title: caseTitle(c.test_case_id),
       runs: c.runs,
-      avgModel: rs.length ? (rs.reduce((a, r) => a + r.model_calls, 0) / rs.length).toFixed(1) : '-',
+      avgModel: c.avg_model_calls === null ? '-' : c.avg_model_calls.toFixed(1),
       avgTokens: fmtInt(c.avg_total_tokens ?? 0),
       avgCost: fmtCost(c.avg_cost_usd),
       warn: c.tool_failed,

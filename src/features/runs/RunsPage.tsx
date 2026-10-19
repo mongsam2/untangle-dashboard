@@ -1,4 +1,4 @@
-import { useRuns, useStats } from '../../api/queries';
+import { useRuns } from '../../api/queries';
 import { Notice, PageMain } from '../../components/Page';
 import { useViewState } from '../../app/useViewState';
 import { FilterBar } from './FilterPanel';
@@ -11,13 +11,12 @@ export function RunsPage() {
   const { filters } = useRunFilters();
   const view = useViewState();
   const runs = useRuns(filters);
-  const stats = useStats(filters);
   const summary = runs.data?.pages[0]?.summary;
   const items = runs.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
     <>
-      <KpiHero tiles={listTiles(summary, stats.data)} />
+      <KpiHero tiles={listTiles(summary)} />
       <PageMain>
         <FilterBar showLegend />
         {runs.isError ? (

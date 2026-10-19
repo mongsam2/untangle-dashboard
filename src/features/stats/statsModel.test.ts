@@ -38,19 +38,22 @@ describe('비율·케이스·KPI', () => {
     expect(statuses!.segs[3]!.value).toBe('2건 · 4%');
   });
 
-  it('케이스 표: 제목과 평균 모델 호출', () => {
-    const rows = caseRows(stats.cases, all);
-    expect(rows[0]).toMatchObject({ id: 'T10', title: '전체 로드맵과 첫 과제 추천', runs: 4, avgModel: '4.0' });
+  it('케이스 표: 케이스 ID 순, 제목과 평균 모델 호출', () => {
+    const rows = caseRows(stats.cases);
+    expect(rows.map((r) => r.id)).toEqual([...rows.map((r) => r.id)].sort());
+    expect(rows.find((r) => r.id === 'T10')).toMatchObject({ title: '전체 로드맵과 첫 과제 추천', runs: 4, avgModel: '4.0' });
     expect(rows.find((r) => r.id === 'T20')!.avgModel).toBe('0.0');
     expect(rows.find((r) => r.id === 'T21')).toMatchObject({ unknown: 4, warn: 0 });
   });
 
   it('집계 KPI', () => {
-    const tiles = statTiles(h.listRuns({}).summary, all);
+    const tiles = statTiles(h.listRuns({}).summary);
     expect(tiles.map((t) => t.label)).toEqual(['평균 모델 호출', '평균 도구 호출', '캐시 적중률', '평균 소요시간']);
     const models = all.reduce((a, r) => a + r.model_calls, 0);
     expect(tiles[0]!.sub).toBe('총 ' + models + '회');
-    expect(tiles[2]!.value).toMatch(/^\d+\.\d%$/);
+    const input = all.reduce((a, r) => a + r.input_tokens, 0);
+    const cached = all.reduce((a, r) => a + r.cached_tokens, 0);
+    expect(tiles[2]!.value).toBe(((cached / input) * 100).toFixed(1) + '%');
     expect(tiles[3]!.sub).toBe('최대 29.7s');
   });
 });

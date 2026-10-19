@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAllRuns, useRunSummary, useStats } from '../../api/queries';
+import { useRunSummary, useStats } from '../../api/queries';
 import { useViewState } from '../../app/useViewState';
 import { Collapsible } from '../../components/Collapsible';
 import { Notice, PageMain } from '../../components/Page';
@@ -22,7 +22,6 @@ export function StatsPage() {
   const view = useViewState();
   const stats = useStats(filters);
   const summary = useRunSummary(filters);
-  const all = useAllRuns(filters);
   // 집계 블록은 처음에 모두 접혀 제목만 보인다.
   const [open, setOpen] = useState<Partial<Record<BlockKey, boolean>>>({});
   const [sort, setSort] = useState<ToolSort>('rate');
@@ -31,7 +30,7 @@ export function StatsPage() {
 
   return (
     <>
-      <KpiHero tiles={statTiles(summary.data, all.data)} />
+      <KpiHero tiles={statTiles(summary.data)} />
       <PageMain>
         <FilterBar />
         {stats.isError ? (
@@ -69,7 +68,7 @@ export function StatsPage() {
               );
             })}
             <Collapsible title="테스트 케이스별" open={!!open.cases} onToggle={() => toggle('cases')} flush>
-              <CaseTable rows={caseRows(st.cases, all.data)} selectedId={view.case ?? view.from} onOpen={view.openCase} />
+              <CaseTable rows={caseRows(st.cases)} selectedId={view.case ?? view.from} onOpen={view.openCase} />
             </Collapsible>
           </>
         )}

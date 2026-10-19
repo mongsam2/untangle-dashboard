@@ -27,26 +27,24 @@ export function matchesFilters(run: RunListItem, f: RunFilters): boolean {
   return true;
 }
 
+// SQL 집계 함수와 같은 규칙: sum·avg·max는 null을 건너뛰고, 행이 없으면 null이다.
 const sum = (xs: number[]): number => xs.reduce((a, x) => a + x, 0);
-const avg = (xs: number[]): number | null => (xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : null);
+const avg = (xs: number[]): number | null => (xs.length ? sum(xs) / xs.length : null);
 const totalTokens = (r: RunListItem) => r.input_tokens + r.output_tokens;
-
-function sumCost(items: RunListItem[]): number | null {
-  const costs = items.map((r) => r.cost_usd).filter((c): c is number => c !== null);
-  return costs.length ? costs.reduce((a, c) => a + c, 0) : null;
-}
+const costs = (items: RunListItem[]) => items.map((r) => r.cost_usd).filter((c): c is number => c !== null);
 
 export function summarize(items: RunListItem[]): RunSummaryStats {
-  const total = sumCost(items);
+  const count = (pred: (r: RunListItem) => boolean) => items.filter(pred).length;
+  const cost = costs(items);
   return {
     runs: items.length,
-    test_runs: items.filter((r) => r.test_case_id !== null).length,
-    real_runs: items.filter((r) => r.test_case_id === null).length,
-    attention_runs: items.filter((r) => r.status !== 'normal').length,
-    model_runs: items.filter((r) => r.path === 'model').length,
-    tool_failed_runs: items.filter((r) => r.status === 'tool_failed').length,
-    outcome_unknown_runs: items.filter((r) => r.status === 'outcome_unknown').length,
-    error_runs: items.filter((r) => r.status === 'error').length,
+    test_runs: count((r) => r.test_case_id !== null),
+    real_runs: count((r) => r.test_case_id === null),
+    attention_runs: count((r) => r.status !== 'normal'),
+    model_runs: count((r) => r.path === 'model'),
+    tool_failed_runs: count((r) => r.status === 'tool_failed'),
+    outcome_unknown_runs: count((r) => r.status === 'outcome_unknown'),
+    error_runs: count((r) => r.status === 'error'),
     avg_duration_ms: avg(items.map((r) => r.duration_ms)),
     max_duration_ms: items.length ? Math.max(...items.map((r) => r.duration_ms)) : null,
     avg_model_calls: avg(items.map((r) => r.model_calls)),
@@ -57,14 +55,13 @@ export function summarize(items: RunListItem[]): RunSummaryStats {
     total_tokens: sum(items.map(totalTokens)),
     total_input_tokens: sum(items.map((r) => r.input_tokens)),
     total_cached_tokens: sum(items.map((r) => r.cached_tokens)),
-    total_cost_usd: total,
-    avg_cost_usd: total === null || !items.length ? null : total / items.length,
+    total_cost_usd: cost.length ? sum(cost) : null,
+    avg_cost_usd: avg(cost),
   };
 }
 
 export function caseStat(id: string, items: RunListItem[]): CaseStat {
   const count = (s: RunStatus) => items.filter((r) => r.status === s).length;
-  const total = sumCost(items);
   return {
     test_case_id: id,
     runs: items.length,
@@ -76,7 +73,7 @@ export function caseStat(id: string, items: RunListItem[]): CaseStat {
     avg_model_calls: avg(items.map((r) => r.model_calls)),
     avg_tool_calls: avg(items.map((r) => r.tool_calls)),
     avg_total_tokens: avg(items.map(totalTokens)),
-    avg_cost_usd: total === null || !items.length ? null : total / items.length,
+    avg_cost_usd: avg(costs(items)),
     last_started_at: items.map((r) => r.started_at).sort().at(-1) ?? '',
   };
 }
@@ -117,18 +114,17 @@ export function computeStats(details: RunDetailResponse[]): StatsResponse {
     }))
     .sort((a, b) => b.calls - a.calls || a.tool_name.localeCompare(b.tool_name));
 
-  const caseIds: string[] = [];
-  for (const r of runs) if (r.test_case_id && !caseIds.includes(r.test_case_id)) caseIds.push(r.test_case_id);
-  const cases = caseIds
-    .map((id) => caseStat(id, runs.filter((r) => r.test_case_id === id)))
-    .sort((a, b) => b.last_started_at.localeCompare(a.last_started_at));
+  // 서버처럼 케이스 ID 순이다.
+  const caseIds = [...new Set(runs.flatMap((r) => (r.test_case_id ? [r.test_case_id] : [])))].sort();
+  const cases = caseIds.map((id) => caseStat(id, runs.filter((r) => r.test_case_id === id)));
 
   return {
     tools: toolStats,
-    tool_kinds: shares(kinds, ['query', 'mutation']),
-    // 서버처럼 최근 1000건만 보낸다.
-    token_samples: [...runs]
-      .sort((a, b) => b.started_at.localeCompare(a.started_at))
+    // 서버는 tool_kind 문자열 순으로 준다.
+    tool_kinds: shares(kinds, ['mutation', 'query']),
+    // 서버처럼 모델을 부른 요청만, 최근 1000건까지 보낸다(runs는 이미 최신순이다).
+    token_samples: runs
+      .filter((r) => r.model_calls > 0)
       .slice(0, TOKEN_SAMPLE_LIMIT)
       .map(totalTokens),
     paths: shares(runs.map((r) => r.path), PATHS),

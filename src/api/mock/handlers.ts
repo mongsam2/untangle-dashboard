@@ -30,19 +30,26 @@ export function decodeCursor(cursor: string, f: RunFilters): number {
   } catch {
     // 아래에서 거절한다.
   }
-  throw new ApiError(400, 'invalid_request', '커서가 조회 조건과 맞지 않아요.');
+  throw new ApiError(422, 'invalid_request', '조회 커서가 유효하지 않아요.');
 }
 
+// 서버의 정렬(started_at DESC, request_id DESC)과 같다.
 function byNewest(a: RunDetailResponse, b: RunDetailResponse): number {
-  return b.run.started_at.localeCompare(a.run.started_at) || a.run.request_id.localeCompare(b.run.request_id);
+  return b.run.started_at.localeCompare(a.run.started_at) || b.run.request_id.localeCompare(a.run.request_id);
 }
+
+const notFound = () => new ApiError(404, 'not_found', '대상을 찾을 수 없어요.');
 
 export function createMockHandlers(data: RunDetailResponse[] = MOCK_RUNS) {
   const sorted = [...data].sort(byNewest);
   const filtered = (f: RunFilters) => sorted.filter((d) => matchesFilters(d.run, f));
   return {
     listRuns(page: RunPage): RunListResponse {
-      const limit = Math.min(Math.max(page.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+      const limit = page.limit ?? DEFAULT_PAGE_SIZE;
+      // 서버는 범위를 벗어난 limit을 고치지 않고 거절한다.
+      if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
+        throw new ApiError(422, 'invalid_request', '요청 형식이 올바르지 않아요.');
+      }
       const items = filtered(page).map((d) => d.run);
       const offset = page.cursor ? decodeCursor(page.cursor, page) : 0;
       const slice = items.slice(offset, offset + limit);
@@ -51,12 +58,12 @@ export function createMockHandlers(data: RunDetailResponse[] = MOCK_RUNS) {
     },
     getRun(id: string): RunDetailResponse {
       const d = sorted.find((x) => x.run.request_id === id);
-      if (!d) throw new ApiError(404, 'not_found', '실행 기록을 찾을 수 없어요.');
+      if (!d) throw notFound();
       return d;
     },
     getCase(id: string): CaseDetailResponse {
       const runs = sorted.filter((d) => d.run.test_case_id === id).map((d) => d.run);
-      if (!runs.length) throw new ApiError(404, 'not_found', '테스트 케이스 기록을 찾을 수 없어요.');
+      if (!runs.length) throw notFound();
       // 통계는 전체 실행, 목록은 최근 100건이다.
       return { stats: caseStat(id, runs), runs: runs.slice(0, CASE_RUN_LIMIT) };
     },
