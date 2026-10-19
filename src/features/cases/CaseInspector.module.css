@@ -1,0 +1,52 @@
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.14;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 20px;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metaLabel {
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--color-on-dark-muted);
+}
+
+.metaValue {
+  font-size: 14px;
+  color: var(--color-on-dark);
+}
+
+.alert {
+  color: var(--color-on-dark-alert);
+}
+
+.input {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inputText {
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
+}
