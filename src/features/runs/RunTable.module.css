@@ -22,12 +22,12 @@
 }
 
 .table {
-  min-width: 880px;
+  min-width: 720px;
 }
 
 .row {
   display: grid;
-  grid-template-columns: 76px 88px minmax(240px, 1fr) 84px 80px 64px 16px;
+  grid-template-columns: 76px 88px minmax(180px, 1fr) 84px 80px 64px 16px;
   gap: 12px;
   align-items: center;
   width: 100%;
