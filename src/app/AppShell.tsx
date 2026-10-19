@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-
 import { CaseInspector } from '../features/cases/CaseInspector';
 import { ReplayPlayer } from '../features/replay/ReplayPlayer';
 import { RunInspector } from '../features/run-detail/RunInspector';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import s from './AppShell.module.css';
 import { useViewState } from './useViewState';
 import { filtersOnly } from './viewParams';
@@ -53,15 +54,25 @@ export function AppShell() {
       </div>
       <div className={s.body}>
         <div className={s.content}>
-          <Outlet context={{ filtersOpen, toggleFilters: () => setFiltersOpen((v) => !v) } satisfies ShellContext} />
+          <ErrorBoundary key={location.pathname + location.search}>
+            <Outlet context={{ filtersOpen, toggleFilters: () => setFiltersOpen((v) => !v) } satisfies ShellContext} />
+          </ErrorBoundary>
         </div>
         {view.run ? (
-          <RunInspector key={view.run} runId={view.run} fromCase={view.from} />
+          <ErrorBoundary key={view.run}>
+            <RunInspector runId={view.run} fromCase={view.from} />
+          </ErrorBoundary>
         ) : view.case ? (
-          <CaseInspector key={view.case} caseId={view.case} />
+          <ErrorBoundary key={view.case}>
+            <CaseInspector caseId={view.case} />
+          </ErrorBoundary>
         ) : null}
       </div>
-      {view.run && view.replay && <ReplayPlayer runId={view.run} onClose={view.closeReplay} />}
+      {view.run && view.replay && (
+        <ErrorBoundary key={view.run}>
+          <ReplayPlayer runId={view.run} onClose={view.closeReplay} />
+        </ErrorBoundary>
+      )}
     </div>
   );
 }
