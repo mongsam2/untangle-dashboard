@@ -77,7 +77,7 @@ describe('목록 API 흉내', () => {
     do {
       const page = h.listRuns({ source: 'test', limit: 20, cursor });
       seen.push(...page.items.map((r) => r.request_id));
-      cursor = page.next_cursor;
+      cursor = page.next_cursor ?? null;
       pages++;
     } while (cursor);
     expect(pages).toBe(3);

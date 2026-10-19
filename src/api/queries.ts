@@ -37,7 +37,7 @@ export function useAllRuns(filters: RunFilters) {
       do {
         const page = await api.listRuns({ ...filters, limit: PAGE_SIZE, cursor });
         items.push(...page.items);
-        cursor = page.next_cursor;
+        cursor = page.next_cursor ?? null;
       } while (cursor);
       return items;
     },

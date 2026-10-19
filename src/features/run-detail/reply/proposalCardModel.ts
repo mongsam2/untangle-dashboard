@@ -1,4 +1,4 @@
-import type { ChallengeCategory, JsonValue, Proposal, RunDetailResponse } from '../../../api/types';
+import type { ChallengeCategory, Proposal, RunDetailResponse } from '../../../api/types';
 import { fmtDeadline } from '../../../lib/format';
 
 export const CATEGORY_LABEL: Record<ChallengeCategory, string> = { start: '시작', sustain: '지속', finish: '완수' };
@@ -68,11 +68,12 @@ export function proposalCardOf(p: Proposal, titleOf: (id: string) => string | un
   };
 }
 
-function walk(v: JsonValue | undefined, out: Map<string, string>): void {
+function walk(v: unknown, out: Map<string, string>): void {
   if (Array.isArray(v)) v.forEach((x) => walk(x, out));
   else if (v && typeof v === 'object') {
-    if (typeof v.id === 'string' && typeof v.title === 'string' && !out.has(v.id)) out.set(v.id, v.title);
-    Object.values(v).forEach((x) => walk(x, out));
+    const o = v as Record<string, unknown>;
+    if (typeof o.id === 'string' && typeof o.title === 'string' && !out.has(o.id)) out.set(o.id, o.title);
+    Object.values(o).forEach((x) => walk(x, out));
   }
 }
 
@@ -80,7 +81,7 @@ function walk(v: JsonValue | undefined, out: Map<string, string>): void {
 export function collectTitles(detail: RunDetailResponse): Map<string, string> {
   const out = new Map<string, string>();
   const res = detail.response;
-  if (res && 'views' in res) walk(res.views as unknown as JsonValue, out);
-  for (const s of detail.steps) walk(s.result ?? undefined, out);
+  if (res && 'views' in res) walk(res.views, out);
+  for (const s of detail.steps) walk(s.result, out);
   return out;
 }

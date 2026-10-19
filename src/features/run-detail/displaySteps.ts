@@ -45,6 +45,9 @@ export function tokensOf(s: AgentStep) {
 /** 도구 결과 안의 오류 메시지. 단계에는 코드만 있어서 결과 객체에서 꺼낸다. */
 export function errorMessageOf(s: AgentStep): string {
   const err = s.result?.error;
-  if (err && typeof err === 'object' && !Array.isArray(err) && typeof err.message === 'string') return err.message;
+  if (err && typeof err === 'object' && !Array.isArray(err)) {
+    const message = (err as Record<string, unknown>).message;
+    if (typeof message === 'string') return message;
+  }
   return '';
 }

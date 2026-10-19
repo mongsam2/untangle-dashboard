@@ -27,6 +27,7 @@ export function matchesFilters(run: RunListItem, f: RunFilters): boolean {
   return true;
 }
 
+const sum = (xs: number[]): number => xs.reduce((a, x) => a + x, 0);
 const avg = (xs: number[]): number | null => (xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : null);
 const totalTokens = (r: RunListItem) => r.input_tokens + r.output_tokens;
 
@@ -42,10 +43,20 @@ export function summarize(items: RunListItem[]): RunSummaryStats {
     test_runs: items.filter((r) => r.test_case_id !== null).length,
     real_runs: items.filter((r) => r.test_case_id === null).length,
     attention_runs: items.filter((r) => r.status !== 'normal').length,
+    model_runs: items.filter((r) => r.path === 'model').length,
+    tool_failed_runs: items.filter((r) => r.status === 'tool_failed').length,
+    outcome_unknown_runs: items.filter((r) => r.status === 'outcome_unknown').length,
+    error_runs: items.filter((r) => r.status === 'error').length,
     avg_duration_ms: avg(items.map((r) => r.duration_ms)),
+    max_duration_ms: items.length ? Math.max(...items.map((r) => r.duration_ms)) : null,
     avg_model_calls: avg(items.map((r) => r.model_calls)),
+    total_model_calls: sum(items.map((r) => r.model_calls)),
     avg_tool_calls: avg(items.map((r) => r.tool_calls)),
+    total_tool_calls: sum(items.map((r) => r.tool_calls)),
     avg_total_tokens: avg(items.map(totalTokens)),
+    total_tokens: sum(items.map(totalTokens)),
+    total_input_tokens: sum(items.map((r) => r.input_tokens)),
+    total_cached_tokens: sum(items.map((r) => r.cached_tokens)),
     total_cost_usd: total,
     avg_cost_usd: total === null || !items.length ? null : total / items.length,
   };
@@ -62,6 +73,7 @@ export function caseStat(id: string, items: RunListItem[]): CaseStat {
     outcome_unknown: count('outcome_unknown'),
     error: count('error'),
     avg_duration_ms: avg(items.map((r) => r.duration_ms)),
+    avg_model_calls: avg(items.map((r) => r.model_calls)),
     avg_tool_calls: avg(items.map((r) => r.tool_calls)),
     avg_total_tokens: avg(items.map(totalTokens)),
     avg_cost_usd: total === null || !items.length ? null : total / items.length,

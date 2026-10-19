@@ -191,7 +191,7 @@ const GOAL_DETAIL: Record<string, GoalDetail> = {
     goal: {
       id: 'g-1', user_id: USER_ID, title: '포트폴리오 공개', status: 'in_progress', initial_title: '포트폴리오 공개',
       completion_criteria: GOAL_PORTFOLIO.criteria, current_deadline: GOAL_PORTFOLIO.deadline, initial_deadline: GOAL_PORTFOLIO.deadline,
-      started_at: '2026-10-12T21:00:00+09:00',
+      started_at: '2026-10-12T21:00:00+09:00', adjustment_count: 0,
     },
     challenges: [],
   },
@@ -199,7 +199,7 @@ const GOAL_DETAIL: Record<string, GoalDetail> = {
     goal: {
       id: 'g-1', user_id: USER_ID, title: '포트폴리오 공개', status: 'in_progress', initial_title: '포트폴리오 공개',
       completion_criteria: GOAL_PORTFOLIO.criteria, current_deadline: GOAL_PORTFOLIO.deadline, initial_deadline: GOAL_PORTFOLIO.deadline,
-      started_at: '2026-10-12T21:00:00+09:00',
+      started_at: '2026-10-12T21:00:00+09:00', adjustment_count: 0,
     },
     challenges: P9_ITEMS.map((it, i) => ({
       id: 'c-1' + (i + 1), goal_id: 'g-1', title: it.title, completion_criteria: it.criteria ?? null, category: it.category,
@@ -207,14 +207,14 @@ const GOAL_DETAIL: Record<string, GoalDetail> = {
     })),
   },
   T24: {
-    goal: { id: 'g-3', user_id: USER_ID, title: '토익 850점 받기', status: 'in_progress', initial_title: '토익 850점 받기', started_at: '2026-10-01T10:00:00+09:00' },
+    goal: { id: 'g-3', user_id: USER_ID, title: '토익 850점 받기', status: 'in_progress', initial_title: '토익 850점 받기', started_at: '2026-10-01T10:00:00+09:00', adjustment_count: 0 },
     challenges: [
       { id: 'c-31', goal_id: 'g-3', title: '단어장 1회독', category: 'start', sort_order: 1, origin: 'agent', status: 'completed', created_at: '2026-10-01T10:05:00+09:00', completed_at: '2026-10-19T15:10:00+09:00' },
       { id: 'c-32', goal_id: 'g-3', title: 'LC 파트 2 풀어 보기', category: 'sustain', sort_order: 2, origin: 'agent', status: 'incomplete', created_at: '2026-10-01T10:05:00+09:00' },
     ],
   },
   T01: {
-    goal: { id: 'g-7', user_id: USER_ID, title: '토익 900점 받기', status: 'in_progress', initial_title: '토익 900점 받기', started_at: '2026-10-19T09:30:00+09:00' },
+    goal: { id: 'g-7', user_id: USER_ID, title: '토익 900점 받기', status: 'in_progress', initial_title: '토익 900점 받기', started_at: '2026-10-19T09:30:00+09:00', adjustment_count: 0 },
     challenges: [],
   },
 };
