@@ -1,0 +1,16 @@
+.main {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 32px 24px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.notice {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 17px;
+  letter-spacing: -0.374px;
+}

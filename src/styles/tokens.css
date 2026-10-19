@@ -1,0 +1,97 @@
+/* 디자인 토큰. 색·반경·글꼴은 모두 여기서만 정의한다. */
+:root {
+  /* 바탕과 글자 */
+  --color-action: #0066cc;
+  --color-focus: #0071e3;
+  --color-link-on-dark: #2997ff;
+  --color-ink: #1d1d1f;
+  --color-body: #333333;
+  --color-muted: #6e6e73;
+  --color-faint: #aeaeb2;
+  --color-dot-neutral: #8e8e93;
+  --color-marker-past: #c7c7cc;
+  --color-parchment: #f5f5f7;
+  --color-canvas: #ffffff;
+  --color-hairline: #e0e0e0;
+  --color-divider: #f0f0f0;
+  --color-row-hover: #fafafc;
+  --color-swatch-ring: #d2d2d7;
+  --color-axis: #c9c9c3;
+  --color-bubble: #e9e9ed;
+  --color-nav: #000000;
+  --color-hero: #272729;
+  --color-on-dark: #ffffff;
+  --color-on-dark-muted: #cccccc;
+  --color-on-dark-alert: #ff8a80;
+  --color-subnav: rgba(245, 245, 247, 0.8);
+  --color-subnav-border: rgba(0, 0, 0, 0.08);
+  --color-close-bg: rgba(210, 210, 215, 0.64);
+
+  /* 데이터 색 */
+  --data-model: #a547c9;
+  --data-query: #2a78d6;
+  --data-mutation: #c95316;
+  --data-server: #6e6e73;
+  --data-failure: #c42b2b;
+  --failure-text: #b42323;
+  --failure-bg: #fcecec;
+  --failure-fg: #8f1a1a;
+
+  --icon-bg-model: #f5ecfa;
+  --icon-bg-query: #eaf2fc;
+  --icon-bg-mutation: #fdefe7;
+
+  /* 토큰 색: 입력 = 인디고, 출력 = 그래파이트 */
+  --tok-input-fresh: #5e5ce6;
+  --tok-input-cached: #c3c2f7;
+  --tok-output-answer: #48484a;
+  --tok-output-reasoning: #aeaeb2;
+
+  --path-accept: #48484a;
+  --path-reject: #aeaeb2;
+
+  --ramp-query-1: #1d5fae;
+  --ramp-query-2: #2a78d6;
+  --ramp-query-3: #5b94dc;
+  --ramp-query-4: #8db6ea;
+  --ramp-query-5: #bcd5f4;
+  --ramp-mutation-1: #7a3209;
+  --ramp-mutation-2: #a8460f;
+  --ramp-mutation-3: #c95316;
+  --ramp-mutation-4: #e0753a;
+  --ramp-mutation-5: #ef9a68;
+  --ramp-mutation-6: #f6bf9a;
+  --ramp-mutation-7: #fbdcc6;
+
+  /* 요청 상태 */
+  --status-ok-bg: #e8f5ed;
+  --status-ok-fg: #14633a;
+  --status-ok-dot: #1a7f45;
+  --status-warn-bg: #fdf4e1;
+  --status-warn-fg: #6e4708;
+  --status-warn-dot: #b7791f;
+  --status-unknown-bg: #fcecec;
+  --status-unknown-fg: #8f1a1a;
+  --status-unknown-dot: #c42b2b;
+  --status-error-bg: #ececee;
+  --status-error-fg: #1d1d1f;
+  --status-error-dot: #6e6e73;
+
+  --row-tint-warn: #fdf5e4;
+  --row-tint-unknown: #fdeeee;
+  --row-tint-error: #f0f0f2;
+
+  /* 반경 */
+  --radius-card: 18px;
+  --radius-pill: 9999px;
+  --radius-sm: 8px;
+  --radius-bubble: 18px;
+  --radius-phone: 36px;
+
+  /* 글꼴 */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, Menlo, 'JetBrains Mono', monospace;
+
+  --inspector-width: 640px;
+  --content-max: 1440px;
+}

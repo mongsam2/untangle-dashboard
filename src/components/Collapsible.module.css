@@ -1,0 +1,47 @@
+.padded {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.flush {
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.headFlush {
+  padding: 24px;
+}
+
+.title {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.231px;
+}
+
+.chev {
+  color: var(--color-muted);
+  flex: none;
+}
+
+.chevOpen {
+  transform: rotate(180deg);
+}
