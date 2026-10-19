@@ -1,5 +1,5 @@
 import type { ChallengeCategory, Proposal, RunDetailResponse } from '../../../api/types';
-import { fmtDeadline } from '../../../lib/format';
+import { fmtDeadline, shortId } from '../../../lib/format';
 
 export const CATEGORY_LABEL: Record<ChallengeCategory, string> = { start: '시작', sustain: '지속', finish: '완수' };
 
@@ -25,7 +25,7 @@ export interface ProposalCardModel {
 const COUNT_WORD: Record<number, string> = { 2: '두', 3: '세', 4: '네', 5: '다섯' };
 
 /**
- * 제안서 카드에 그릴 값. 빠지는 과제의 제목은 제안서에 없어서 titleOf로 찾고, 못 찾으면 ID를 보여준다.
+ * 제안서 카드에 그릴 값. 빠지는 과제의 제목은 제안서에 없어서 titleOf로 찾고, 못 찾으면 '과제'와 짧은 ID를 보여준다.
  */
 export function proposalCardOf(p: Proposal, titleOf: (id: string) => string | undefined = () => undefined): ProposalCardModel {
   const preview = p.result_preview;
@@ -35,9 +35,9 @@ export function proposalCardOf(p: Proposal, titleOf: (id: string) => string | un
     if (c.action === 'split_challenge') {
       c.replacements.forEach((r) => splitKeys.add(r.temp_key));
       const n = c.replacements.length;
-      removed.push({ title: titleOf(c.challenge_id) ?? c.challenge_id, why: (COUNT_WORD[n] ?? n + '개') + ' 과제로 분할' });
+      removed.push({ title: titleOf(c.challenge_id) ?? '과제 ' + shortId(c.challenge_id), why: (COUNT_WORD[n] ?? n + '개') + ' 과제로 분할' });
     } else if (c.action === 'delete_challenge') {
-      removed.push({ title: titleOf(c.challenge_id) ?? c.challenge_id, why: '삭제' });
+      removed.push({ title: titleOf(c.challenge_id) ?? '과제 ' + shortId(c.challenge_id), why: '삭제' });
     }
   }
   const roadmap =

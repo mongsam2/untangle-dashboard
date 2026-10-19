@@ -59,6 +59,7 @@ export function caseTitle(id: string, fallback?: string | null): string {
   return CASE_CATALOG[id]?.title ?? DOC_TITLES[id] ?? fallback ?? id;
 }
 
-export function caseInput(id: string, fallback?: string | null): string {
-  return CASE_CATALOG[id]?.input ?? fallback ?? '';
+/** 케이스의 사용자 입력. 기록된 입력이 있으면 그것을, 없으면 카탈로그의 예시 입력을 쓴다. */
+export function caseInput(id: string, recorded?: string | null): string {
+  return recorded || CASE_CATALOG[id]?.input || '';
 }

@@ -2,7 +2,7 @@ import type { RunListItem } from '../../api/types';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { ChevronRight } from '../../components/icons';
-import { fmtCost, fmtInt, fmtMs, fmtTime } from '../../lib/format';
+import { fmtCost, fmtInt, fmtMs, fmtStamp } from '../../lib/format';
 import { RUN_STATUS, rowStyleOf, SOURCE, sourceOf } from '../../lib/status';
 import s from './RunTable.module.css';
 import { inputOf, summaryOf } from './summary';
@@ -48,7 +48,7 @@ export function RunTable({ total, items, selectedId, onOpen, hasMore, loadingMor
                 aria-label={(r.test_case_id ? r.test_case_id + ' ' : '') + summary + ', ' + st.label + ', 상세 보기'}
                 onClick={() => onOpen(r.request_id)}
               >
-                <span className={`mono ${s.time}`}>{fmtTime(r.started_at)}</span>
+                <span className={`mono ${s.time}`}>{fmtStamp(r.started_at)}</span>
                 <span>
                   <Badge bg={src.bg} fg={src.fg}>
                     {src.label}

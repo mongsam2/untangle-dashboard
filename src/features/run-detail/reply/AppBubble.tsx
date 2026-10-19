@@ -1,5 +1,6 @@
 import { isErrorResponse, type RunDetailResponse } from '../../../api/types';
 import { Badge } from '../../../components/Badge';
+import { CopyId } from '../../../components/CopyId';
 import { StepIcon } from '../../../components/StepIcon';
 import { RUN_STATUS, stepTone } from '../../../lib/status';
 import s from './AppBubble.module.css';
@@ -12,8 +13,8 @@ export function AppBubble({ detail }: { detail: RunDetailResponse }) {
   const error = isErrorResponse(res) ? res.error : null;
   const chat = res && !isErrorResponse(res) ? res : null;
   const proposal = chat?.views?.find((v) => v.type === 'proposal');
-  const titles = proposal ? collectTitles(detail) : null;
-  const card = proposal?.type === 'proposal' ? proposalCardOf(proposal.data, (id) => titles?.get(id)) : null;
+  const titles = collectTitles(detail);
+  const card = proposal?.type === 'proposal' ? proposalCardOf(proposal.data, (id) => titles.get(id)) : null;
   const options = chat?.options ?? [];
   const views = chat?.views ?? [];
   const ops = chat?.operations ?? [];
@@ -71,7 +72,8 @@ export function AppBubble({ detail }: { detail: RunDetailResponse }) {
               <div key={i} className={s.op}>
                 <span className="mono">{o.action}</span>
                 <span className={`mono ${s.muted}`}>
-                  {o.target_type} {o.target_id ?? ''}
+                  {o.target_type}{' '}
+                  {o.target_id && (titles.get(o.target_id) ? <span title={o.target_id}>{titles.get(o.target_id)}</span> : <CopyId id={o.target_id} />)}
                 </span>
                 <Badge bg={tone.bg} fg={tone.fg} dot={tone.dot}>
                   {tone.label}

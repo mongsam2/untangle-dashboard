@@ -30,6 +30,26 @@ export function fmtTime(iso: string): string {
   return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
 }
 
+/**
+ * 목록의 시각. 오늘(한국 시간) 기록은 시:분:초, 그 전 기록은 날짜를 붙여 월/일 시:분으로 보인다.
+ * 여러 날에 걸친 목록에서 시각만 보이면 순서가 뒤섞여 보이기 때문이다.
+ */
+export function fmtStamp(iso: string, now: number = Date.now()): string {
+  const d = kst(iso);
+  const today = new Date(now + KST_OFFSET_MS);
+  const sameDay =
+    d.getUTCFullYear() === today.getUTCFullYear() && d.getUTCMonth() === today.getUTCMonth() && d.getUTCDate() === today.getUTCDate();
+  if (sameDay) return fmtTime(iso);
+  return d.getUTCMonth() + 1 + '/' + d.getUTCDate() + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** UUID는 앞 8자리만 보인다. 전체 값은 title이나 복사로 확인한다. UUID가 아니면 그대로 둔다. */
+export function shortId(id: string): string {
+  return UUID_RE.test(id) ? id.slice(0, 8) + '…' : id;
+}
+
 export function fmtDateTime(iso: string): string {
   const d = kst(iso);
   return d.getUTCMonth() + 1 + '월 ' + d.getUTCDate() + '일 ' + fmtTime(iso);

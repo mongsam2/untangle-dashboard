@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtCost, fmtDateTime, fmtDeadline, fmtInt, fmtMs, fmtPct, fmtSec, fmtTime } from './format';
+import { fmtCost, fmtDateTime, fmtDeadline, fmtInt, fmtMs, fmtPct, fmtSec, fmtStamp, fmtTime, shortId } from './format';
 
 describe('format', () => {
   it('정수는 한국식 천 단위 구분', () => {
@@ -28,6 +28,19 @@ describe('format', () => {
     expect(fmtTime('2026-10-19T08:52:13Z')).toBe('17:52:13');
     expect(fmtDateTime('2026-10-19T15:05:00Z')).toBe('10월 20일 00:05:00');
     expect(fmtDeadline('2026-10-31T23:59:00+09:00')).toBe('10월 31일 23:59');
+  });
+
+  it('목록 시각: 오늘은 시각만, 지난 날은 날짜를 붙인다', () => {
+    const now = Date.parse('2026-10-19T09:00:00Z'); // 한국 시간 18:00
+    expect(fmtStamp('2026-10-19T08:52:13Z', now)).toBe('17:52:13');
+    expect(fmtStamp('2026-10-18T08:52:13Z', now)).toBe('10/18 17:52');
+    // 한국 날짜 기준: UTC로는 같은 날이어도 한국에서는 전날이다.
+    expect(fmtStamp('2026-10-18T14:59:00Z', Date.parse('2026-10-18T15:01:00Z'))).toBe('10/18 23:59');
+  });
+
+  it('UUID는 앞 8자리만', () => {
+    expect(shortId('27163b40-0425-599d-8a4e-0123456789ab')).toBe('27163b40…');
+    expect(shortId('c-12')).toBe('c-12');
   });
 
   it('비율', () => {

@@ -36,7 +36,8 @@ export function CaseInspector({ caseId }: { caseId: string }) {
           </InspectorHero>
           <InspectorBody>
             <div className={`card ${s.input}`}>
-              <span className="th">예시 입력</span>
+              {/* 기록된 입력이 있으면 최근 실행의 입력, 없으면 카탈로그의 예시 입력이다. */}
+              <span className="th">{d.runs[0]?.input_preview ? '최근 입력' : '예시 입력'}</span>
               <span className={s.inputText}>{caseInput(caseId, d.runs[0]?.input_preview)}</span>
             </div>
             <CaseRunTable runs={d.runs} onOpen={(id) => view.openRun(id, caseId)} />

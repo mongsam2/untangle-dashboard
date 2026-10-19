@@ -1,0 +1,16 @@
+.id {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: copy;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.id:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

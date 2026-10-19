@@ -1,6 +1,6 @@
 import type { RunListItem } from '../../api/types';
 import { ChevronRight } from '../../components/icons';
-import { fmtCost, fmtInt, fmtMs, fmtTime } from '../../lib/format';
+import { fmtCost, fmtInt, fmtMs, fmtStamp } from '../../lib/format';
 import { RUN_STATUS, rowStyleOf } from '../../lib/status';
 import s from './CaseRunTable.module.css';
 
@@ -29,10 +29,10 @@ export function CaseRunTable({ runs, onOpen }: { runs: RunListItem[]; onOpen: (i
                 className={s.row}
                 style={rowStyleOf(r.status, false)}
                 title={st.label}
-                aria-label={fmtTime(r.started_at) + ' 실행, ' + st.label + ', 상세 보기'}
+                aria-label={fmtStamp(r.started_at) + ' 실행, ' + st.label + ', 상세 보기'}
                 onClick={() => onOpen(r.request_id)}
               >
-                <span className={`mono ${s.time}`}>{fmtTime(r.started_at)}</span>
+                <span className={`mono ${s.time}`}>{fmtStamp(r.started_at)}</span>
                 <span className={`mono ${s.num}`}>{r.model_calls}</span>
                 <span className={`mono ${s.num}`}>{fmtInt(r.input_tokens + r.output_tokens)}</span>
                 <span className={`mono ${s.num}`}>{fmtCost(r.cost_usd)}</span>

@@ -4,6 +4,7 @@ import { isErrorResponse, type RunDetailResponse } from '../../api/types';
 import { useViewState } from '../../app/useViewState';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
+import { CopyId } from '../../components/CopyId';
 import { PlayIcon } from '../../components/icons';
 import { Inspector, InspectorBody, InspectorHero, InspectorMessage } from '../../components/Inspector';
 import { fmtCost, fmtDateTime, fmtMs } from '../../lib/format';
@@ -56,9 +57,9 @@ function RunDetail({ detail, fromCase, onBack, onPlay }: RunDetailProps) {
   const st = RUN_STATUS[run.status];
   const res = detail.response;
   const turnId = res ? (isErrorResponse(res) ? res.turn_id : res.turn_id) : null;
-  const meta = [
-    { label: 'turn_id', value: turnId ?? '-', mono: true },
-    { label: 'request_id', value: run.request_id, mono: true },
+  const meta: { label: string; value: string; mono?: boolean; id?: boolean }[] = [
+    { label: 'turn_id', value: turnId ?? '-', mono: true, id: !!turnId },
+    { label: 'request_id', value: run.request_id, mono: true, id: true },
     { label: '시각', value: fmtDateTime(run.started_at), mono: true },
     { label: '처리 경로', value: PATH_LABEL[run.path] },
     { label: '모델', value: run.model ?? '사용 안 함' },
@@ -99,9 +100,13 @@ function RunDetail({ detail, fromCase, onBack, onPlay }: RunDetailProps) {
           {meta.map((m) => (
             <div key={m.label} className={s.metaItem}>
               <span className={s.metaLabel}>{m.label}</span>
-              <span className={`${m.mono ? 'mono' : ''} ${s.metaValue}`} title={m.value}>
-                {m.value}
-              </span>
+              {m.id ? (
+                <CopyId id={m.value} className={s.metaValue} />
+              ) : (
+                <span className={`${m.mono ? 'mono' : ''} ${s.metaValue}`} title={m.value}>
+                  {m.value}
+                </span>
+              )}
             </div>
           ))}
         </div>

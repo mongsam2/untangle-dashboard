@@ -38,8 +38,11 @@ describe('제안서 카드', () => {
     expect(card.removed).toEqual([{ title: '프로젝트별 보여줄 내용 적기', why: '두 과제로 분할' }]);
   });
 
-  it('제목을 못 찾으면 ID를 보여준다', () => {
-    const card = proposalCardOf(proposalOf('T19').p);
-    expect(card.removed[0]!.title).toBe('c-12');
+  it('제목을 못 찾으면 과제 ID를 보여주고, UUID는 앞 8자리로 줄인다', () => {
+    const { p } = proposalOf('T19');
+    expect(proposalCardOf(p).removed[0]!.title).toBe('과제 c-12');
+    const id = '19e7e324-d985-55e6-80d3-d0803a4d89e2';
+    const changes = p.changes.map((c) => (c.action === 'delete_challenge' || c.action === 'split_challenge' ? { ...c, challenge_id: id } : c));
+    expect(proposalCardOf({ ...p, changes }).removed[0]!.title).toBe('과제 19e7e324…');
   });
 });
