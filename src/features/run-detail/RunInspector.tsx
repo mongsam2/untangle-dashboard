@@ -11,12 +11,10 @@ import { fmtCost, fmtDateTime, fmtMs } from '../../lib/format';
 import { inputText } from '../../lib/input';
 import { PATH_LABEL, RUN_STATUS } from '../../lib/status';
 import { summaryOf } from '../runs/summary';
-import { displaySteps, modelSteps, type DisplayStep } from './displaySteps';
+import { displaySteps, modelSteps } from './displaySteps';
 import { AppBubble } from './reply/AppBubble';
 import s from './RunInspector.module.css';
-import { ModelStep } from './steps/ModelStep';
-import { ServerStep } from './steps/ServerStep';
-import { ToolStep } from './steps/ToolStep';
+import { StepView } from './steps/StepView';
 import { TokenBars } from './TokenBars';
 import { TokenTable } from './TokenTable';
 import { UserInput } from './UserInput';
@@ -24,15 +22,25 @@ import { UserInput } from './UserInput';
 interface RunInspectorProps {
   runId: string;
   fromCase: string | null;
+  /** 대화 인스펙터에서 열었으면 그 대화 ID. 돌아가는 링크를 보인다. */
+  fromConversation: string | null;
 }
 
-export function RunInspector({ runId, fromCase }: RunInspectorProps) {
+export function RunInspector({ runId, fromCase, fromConversation }: RunInspectorProps) {
   const view = useViewState();
   const q = useRun(runId);
   return (
     <Inspector label="요청 상세" onClose={view.close}>
       {q.data ? (
-        <RunDetail detail={q.data} fromCase={fromCase} onBack={view.backToCase} onPlay={view.openReplay} />
+        <RunDetail
+          detail={q.data}
+          fromCase={fromCase}
+          fromConversation={fromConversation}
+          onBack={view.backToCase}
+          onBackToConversation={view.backToConversation}
+          onOpenConversation={() => view.openConversation(q.data.run.conversation_id)}
+          onPlay={view.openReplay}
+        />
       ) : q.isError ? (
         <InspectorMessage>요청을 불러오지 못했어요. {q.error.message}</InspectorMessage>
       ) : (
@@ -45,11 +53,14 @@ export function RunInspector({ runId, fromCase }: RunInspectorProps) {
 interface RunDetailProps {
   detail: RunDetailResponse;
   fromCase: string | null;
+  fromConversation: string | null;
   onBack: () => void;
+  onBackToConversation: () => void;
+  onOpenConversation: () => void;
   onPlay: () => void;
 }
 
-function RunDetail({ detail, fromCase, onBack, onPlay }: RunDetailProps) {
+function RunDetail({ detail, fromCase, fromConversation, onBack, onBackToConversation, onOpenConversation, onPlay }: RunDetailProps) {
   const { run } = detail;
   const [sel, setSel] = useState<number | null>(null);
   const steps = useMemo(() => displaySteps(run, detail.steps), [run, detail.steps]);
@@ -77,6 +88,11 @@ function RunDetail({ detail, fromCase, onBack, onPlay }: RunDetailProps) {
             ‹ {fromCase} 실행 목록
           </button>
         )}
+        {fromConversation && (
+          <button type="button" className={s.back} onClick={onBackToConversation}>
+            ‹ 대화로 돌아가기
+          </button>
+        )}
         <div className={s.badges}>
           {run.test_case_id ? (
             <Badge mono bg="var(--color-canvas)" fg="var(--color-ink)">
@@ -94,6 +110,11 @@ function RunDetail({ detail, fromCase, onBack, onPlay }: RunDetailProps) {
             <PlayIcon />
             재생
           </Button>
+          {!fromConversation && (
+            <Button variant="pill" className={s.onDark} onClick={onOpenConversation}>
+              대화 보기
+            </Button>
+          )}
         </div>
         <h1 className={s.title}>{summaryOf(run)}</h1>
         <div className={s.meta}>
@@ -126,10 +147,4 @@ function RunDetail({ detail, fromCase, onBack, onPlay }: RunDetailProps) {
       </InspectorBody>
     </>
   );
-}
-
-function StepView({ step, selected, onSelect }: { step: DisplayStep; selected: boolean; onSelect: () => void }) {
-  if (step.kind === 'model') return <ModelStep step={step} selected={selected} onSelect={onSelect} />;
-  if (step.kind === 'tool') return <ToolStep step={step} selected={selected} onSelect={onSelect} />;
-  return <ServerStep step={step} selected={selected} onSelect={onSelect} />;
 }

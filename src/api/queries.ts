@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { api } from './client';
-import type { RunFilters } from './types';
+import type { RunFilters, RunSource } from './types';
 
 const PAGE_SIZE = 100;
 
@@ -32,6 +32,25 @@ export function useRun(requestId: string | null) {
     queryKey: ['run', requestId],
     queryFn: () => api.getRun(requestId!),
     enabled: !!requestId,
+  });
+}
+
+/** 대화 목록(커서 페이지). 마지막 요청이 최근인 대화부터 온다. */
+export function useConversations(source: RunSource) {
+  return useInfiniteQuery({
+    queryKey: ['conversations', source],
+    queryFn: ({ pageParam }) => api.listConversations({ source, limit: PAGE_SIZE, cursor: pageParam }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.next_cursor ?? null,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useConversation(conversationId: string | null) {
+  return useQuery({
+    queryKey: ['conversation', conversationId],
+    queryFn: () => api.getConversation(conversationId!),
+    enabled: !!conversationId,
   });
 }
 

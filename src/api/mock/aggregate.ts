@@ -1,6 +1,7 @@
 // 서버가 SQL로 계산할 요약·집계를 예시 데이터에서 같은 모양으로 계산한다.
 import type {
   CaseStat,
+  ConversationListItem,
   RunDetailResponse,
   RunFilters,
   RunListItem,
@@ -17,6 +18,7 @@ const PATHS: RunPath[] = ['model', 'accept_direct', 'reject_direct'];
 const STATUSES: RunStatus[] = ['normal', 'tool_failed', 'outcome_unknown', 'error'];
 export const TOKEN_SAMPLE_LIMIT = 1000;
 export const CASE_RUN_LIMIT = 100;
+export const CONVERSATION_TURN_LIMIT = 100;
 
 export function matchesFilters(run: RunListItem, f: RunFilters): boolean {
   const source = f.source ?? 'all';
@@ -32,6 +34,33 @@ const sum = (xs: number[]): number => xs.reduce((a, x) => a + x, 0);
 const avg = (xs: number[]): number | null => (xs.length ? sum(xs) / xs.length : null);
 const totalTokens = (r: RunListItem) => r.input_tokens + r.output_tokens;
 const costs = (items: RunListItem[]) => items.map((r) => r.cost_usd).filter((c): c is number => c !== null);
+
+/** 한 대화의 요청들(시작 순서)을 대화 목록 항목으로 합친다. 서버의 대화 집계 SQL과 같은 규칙이다. */
+export function conversationItem(runs: RunListItem[], userId: string): ConversationListItem {
+  const first = runs[0]!;
+  const last = runs[runs.length - 1]!;
+  const cost = costs(runs);
+  const total = (pick: (r: RunListItem) => number) => sum(runs.map(pick));
+  return {
+    conversation_id: first.conversation_id,
+    user_id: userId,
+    turns: runs.length,
+    test_turns: runs.filter((r) => r.test_case_id !== null).length,
+    attention_turns: runs.filter((r) => r.status !== 'normal').length,
+    model_calls: total((r) => r.model_calls),
+    tool_calls: total((r) => r.tool_calls),
+    input_tokens: total((r) => r.input_tokens),
+    cached_tokens: total((r) => r.cached_tokens),
+    output_tokens: total((r) => r.output_tokens),
+    reasoning_tokens: total((r) => r.reasoning_tokens),
+    cost_usd: cost.length ? sum(cost) : null,
+    duration_ms: total((r) => r.duration_ms),
+    started_at: first.started_at,
+    last_started_at: last.started_at,
+    first_input_preview: first.input_preview,
+    last_input_preview: last.input_preview,
+  };
+}
 
 export function summarize(items: RunListItem[]): RunSummaryStats {
   const count = (pred: (r: RunListItem) => boolean) => items.filter(pred).length;

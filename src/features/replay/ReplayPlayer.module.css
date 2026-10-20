@@ -40,3 +40,11 @@
   padding: 24px;
   overflow: auto;
 }
+
+/* 넓은 화면에서는 대화창과 단계 흐름을 한 줄에 두고 각자 안에서 스크롤한다.
+   대화 재생처럼 단계가 많이 쌓여도 화면 전체가 밀리지 않고 지금 단계가 보인다. */
+@media (min-width: 860px) {
+  .body {
+    flex-wrap: nowrap;
+  }
+}

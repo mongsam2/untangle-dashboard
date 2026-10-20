@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../errors';
 import type { ChatResponse } from '../types';
-import { MOCK_RUNS } from './fixtures';
+import { MOCK_RUNS, REAL_CONVERSATION_ID } from './fixtures';
 import { createMockHandlers, encodeCursor } from './handlers';
 
 const h = createMockHandlers();
@@ -191,5 +191,44 @@ describe('상세·케이스·집계 흉내', () => {
     const st = h.getStats({ path: 'reject_direct' });
     expect(st.tools).toEqual([]);
     expect(st.paths).toEqual([{ value: 'reject_direct', count: 4, ratio: 1 }]);
+  });
+});
+
+describe('대화 API 흉내', () => {
+  it('요청을 대화별로 묶고 마지막 요청이 최근인 대화부터 준다', () => {
+    const all = h.listConversations({ limit: 100 });
+    expect(all.items).toHaveLength(47);
+    expect(all.next_cursor).toBeNull();
+    const last = all.items.map((c) => c.last_started_at);
+    expect([...last].sort().reverse()).toEqual(last);
+    expect(all.items.reduce((a, c) => a + c.turns, 0)).toBe(50);
+
+    const real = h.listConversations({ source: 'real', limit: 100 });
+    expect(real.items).toHaveLength(3);
+    const multi = real.items.find((c) => c.conversation_id === REAL_CONVERSATION_ID)!;
+    expect(multi).toMatchObject({ turns: 4, test_turns: 0, first_input_preview: '오늘 뭐부터 하면 좋을까?', last_input_preview: '포트폴리오 진행 상황 알려줘' });
+    expect(multi.started_at < multi.last_started_at).toBe(true);
+  });
+
+  it('대화 커서는 요청 목록 커서와 바꿔 쓸 수 없다', () => {
+    const first = h.listConversations({ source: 'test', limit: 20 });
+    const second = h.listConversations({ source: 'test', limit: 20, cursor: first.next_cursor });
+    expect(new Set([...first.items, ...second.items].map((c) => c.conversation_id)).size).toBe(40);
+    expect(() => h.listConversations({ source: 'real', cursor: first.next_cursor })).toThrow(ApiError);
+    const runsCursor = h.listRuns({ source: 'test', limit: 20 }).next_cursor;
+    expect(() => h.listConversations({ source: 'test', limit: 20, cursor: runsCursor })).toThrow(ApiError);
+    expect(() => h.listConversations({ limit: 0 })).toThrow(ApiError);
+  });
+
+  it('대화 상세는 요청을 시작 순서로 쌓고 합계는 대화 전체다', () => {
+    const d = h.getConversation(REAL_CONVERSATION_ID);
+    expect(d.omitted_turns).toBe(0);
+    expect(d.turns.map((t) => t.run.conversation_id)).toEqual(Array(4).fill(REAL_CONVERSATION_ID));
+    const starts = d.turns.map((t) => t.run.started_at);
+    expect([...starts].sort()).toEqual(starts);
+    expect(d.conversation.input_tokens).toBe(d.turns.reduce((a, t) => a + t.run.input_tokens, 0));
+    // 뒤 턴의 이전 대화는 앞 턴으로 서버가 만든 모양이다.
+    expect(MOCK_RUNS.find((r) => r.run.request_id === d.turns[2]!.run.request_id)!.history).toHaveLength(4);
+    expect(() => h.getConversation('nope')).toThrow(ApiError);
   });
 });

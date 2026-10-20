@@ -565,6 +565,14 @@ function requestId(i: number): string {
   return hex8(i) + '-7a3e-4b1d-9c2f-' + String(i + 1).padStart(12, '0');
 }
 
+/** 케이스 실행과 응답 오류 예시는 요청마다 대화가 따로다. */
+function conversationId(i: number): string {
+  return hex8(i) + '-c0c0-4c0c-8c0c-' + String(i + 1).padStart(12, '0');
+}
+
+/** 예시 대화를 시작한 사용자. 서버 시드처럼 모든 예시가 같은 사용자다. */
+export const MOCK_USER_ID = '5eed0000-0000-4000-8000-000000000000';
+
 function buildCaseRuns(): RunDetailResponse[] {
   const runs: RunDetailResponse[] = [];
   let t = Date.parse('2026-10-19T08:52:13Z');
@@ -588,6 +596,7 @@ function buildCaseRuns(): RunDetailResponse[] {
       runs.push({
         run: {
           request_id: requestId(i),
+          conversation_id: conversationId(i),
           test_case_id: c.id,
           path: c.path,
           status: c.status,
@@ -646,7 +655,7 @@ const ERROR_RUNS: ErrorRunSrc[] = [
     },
   },
   {
-    index: 21,
+    index: 18,
     input: '토익 목표 기한을 11월 말로 미뤄줘',
     history: TOEIC_START,
     steps: [
@@ -657,9 +666,12 @@ const ERROR_RUNS: ErrorRunSrc[] = [
   },
 ];
 
-// 테스트 케이스가 아닌 실제 요청 예시 4건. 서버 시드처럼 T10의 흐름을 다른 입력으로 재사용한다.
+// 테스트 케이스가 아닌 실제 요청 예시 4건. 서버 시드처럼 T10의 흐름을 다른 입력으로 재사용하고,
+// 7분 간격으로 이어진 한 대화로 묶는다. 뒤 턴의 이전 대화는 앞 턴의 입력과 답변으로 서버가 만든 모양이다.
 const REAL_TEXTS = ['오늘 뭐부터 하면 좋을까?', '포트폴리오 진행 상황 알려줘'];
-const REAL_AT = [9, 18, 29, 38];
+const REAL_START = Date.parse('2026-10-19T07:40:00Z');
+const REAL_GAP_MS = 7 * 60000;
+export const REAL_CONVERSATION_ID = 'c0de0000-7a3e-4b1d-9c2f-000000000800';
 
 function midpoint(runs: RunDetailResponse[], index: number): number {
   const newer = Date.parse(runs[index - 1]!.run.started_at);
@@ -667,17 +679,22 @@ function midpoint(runs: RunDetailResponse[], index: number): number {
   return Math.round((newer + older) / 2 / 1000) * 1000;
 }
 
-function insertRealRuns(runs: RunDetailResponse[]): void {
+function buildRealRuns(): RunDetailResponse[] {
   const t10 = CASES.find((c) => c.id === 'T10')!;
-  REAL_AT.forEach((index, k) => {
-    const t = midpoint(runs, index);
+  const history: HistoryMessage[] = [];
+  return [0, 1, 2, 3].map((k) => {
+    const t = REAL_START + k * REAL_GAP_MS;
     const built = buildSteps(t10.steps, t, TF[k % 4]!, DF[(k + 1) % 4]!);
     const ms = built.ms + 110;
-    const input = msg(REAL_TEXTS[k % 2]!);
+    const text = REAL_TEXTS[k % 2]!;
+    const input = msg(text);
     const hash = hex8(200 + k);
-    runs.splice(index, 0, {
+    const before = [...history];
+    history.push({ role: 'user', text: '[' + iso(t).slice(0, 10) + '] ' + text }, { role: 'assistant', text: t10.reply.message });
+    return {
       run: {
         request_id: hash + '-7a3e-4b1d-9c2f-' + String(800 + k).padStart(12, '0'),
+        conversation_id: REAL_CONVERSATION_ID,
         test_case_id: null,
         path: 'model',
         status: 'normal',
@@ -690,7 +707,7 @@ function insertRealRuns(runs: RunDetailResponse[]): void {
         input_preview: preview(input),
       },
       input,
-      history: [],
+      history: before,
       response: {
         turn_id: hash + '-41c2-9b7e-' + hash.slice(0, 4) + 'a0d1',
         message: t10.reply.message,
@@ -699,22 +716,27 @@ function insertRealRuns(runs: RunDetailResponse[]): void {
         operations: opsOf(t10),
       },
       steps: built.steps,
-    });
+    };
   });
+}
+
+// 서버의 목록 정렬(started_at DESC, request_id DESC)과 같다.
+function byNewest(a: RunDetailResponse, b: RunDetailResponse): number {
+  return b.run.started_at.localeCompare(a.run.started_at) || b.run.request_id.localeCompare(a.run.request_id);
 }
 
 function buildRuns(): RunDetailResponse[] {
   const runs = buildCaseRuns();
-  insertRealRuns(runs);
-  ERROR_RUNS.forEach((e, k) => {
-    // 이웃한 두 요청 사이 시각에 끼워 넣는다.
+  const errors = ERROR_RUNS.map((e, k): RunDetailResponse => {
+    // 이웃한 두 케이스 실행 사이 시각에 끼워 넣는다.
     const t = midpoint(runs, e.index);
     const built = buildSteps(e.steps, t, 1, 1);
     const ms = built.ms + 110;
     const input = msg(e.input);
-    runs.splice(e.index, 0, {
+    return {
       run: {
         request_id: 'e' + hex8(100 + k).slice(1) + '-7a3e-4b1d-9c2f-' + String(900 + k).padStart(12, '0'),
+        conversation_id: conversationId(900 + k),
         test_case_id: null,
         path: 'model',
         status: 'error',
@@ -730,9 +752,9 @@ function buildRuns(): RunDetailResponse[] {
       history: toHistory(e.history),
       response: e.response,
       steps: built.steps,
-    });
+    };
   });
-  return runs;
+  return [...runs, ...errors, ...buildRealRuns()].sort(byNewest);
 }
 
 /** 최신순으로 정렬된 예시 실행 기록 50건. */

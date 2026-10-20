@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CaseInspector } from '../features/cases/CaseInspector';
+import { ConversationInspector } from '../features/conversations/ConversationInspector';
+import { ConversationReplayPlayer } from '../features/replay/ConversationReplayPlayer';
 import { ReplayPlayer } from '../features/replay/ReplayPlayer';
 import { RunInspector } from '../features/run-detail/RunInspector';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -15,6 +17,7 @@ export interface ShellContext {
 
 const NAV = [
   { path: '/runs', label: '요청 목록' },
+  { path: '/conversations', label: '대화' },
   { path: '/stats', label: '집계' },
 ];
 
@@ -60,7 +63,11 @@ export function AppShell() {
         </div>
         {view.run ? (
           <ErrorBoundary key={view.run}>
-            <RunInspector runId={view.run} fromCase={view.from} />
+            <RunInspector runId={view.run} fromCase={view.from} fromConversation={view.conversation} />
+          </ErrorBoundary>
+        ) : view.conversation ? (
+          <ErrorBoundary key={view.conversation}>
+            <ConversationInspector conversationId={view.conversation} />
           </ErrorBoundary>
         ) : view.case ? (
           <ErrorBoundary key={view.case}>
@@ -68,11 +75,15 @@ export function AppShell() {
           </ErrorBoundary>
         ) : null}
       </div>
-      {view.run && view.replay && (
+      {view.run && view.replay ? (
         <ErrorBoundary key={view.run}>
           <ReplayPlayer runId={view.run} onClose={view.closeReplay} />
         </ErrorBoundary>
-      )}
+      ) : view.conversation && view.replay ? (
+        <ErrorBoundary key={view.conversation}>
+          <ConversationReplayPlayer conversationId={view.conversation} onClose={view.closeReplay} />
+        </ErrorBoundary>
+      ) : null}
     </div>
   );
 }
