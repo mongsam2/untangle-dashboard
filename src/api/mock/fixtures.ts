@@ -488,6 +488,8 @@ function buildSteps(src: StepSrc[], startMs: number, tf: number, df: number): Bu
         reasoning_tokens: reasoning,
         cost_usd: round6(costOf(input, cached, output)),
         reasoning_summary: s.summary,
+        // 예시 요약은 이미 한국어라 서버처럼 원문을 그대로 번역본으로 둔다.
+        reasoning_summary_ko: s.summary,
         next_action: s.next,
       });
     } else if (s.k === 'tool') {

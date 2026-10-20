@@ -2,7 +2,7 @@ import { isErrorResponse, type HistoryMessage, type RunDetailResponse, type Tool
 import { fmtCost, fmtInt, fmtSec } from '../../lib/format';
 import { KIND, MODEL_COLOR, nextActionLabel } from '../../lib/kinds';
 import { isFailure, stepTone, type Tone } from '../../lib/status';
-import { displaySteps, errorMessageOf, type DisplayStep } from '../run-detail/displaySteps';
+import { displaySteps, errorMessageOf, summaryText, type DisplayStep } from '../run-detail/displaySteps';
 
 // 단계마다 짧은 애니메이션(ANIM) 뒤 걸린 시간을 찍고 잠깐(HOLD) 멈춘 다음 넘어간다.
 export const RP_ANIM = 1800;
@@ -149,7 +149,7 @@ export function buildView(detail: RunDetailResponse, s: ReplayScript, p: ReplayS
         ...base,
         kind: 'model',
         title: '모델 호출 #' + st.modelIndex,
-        text: st.reasoning_summary ?? '추론 요약을 받지 못했어요.',
+        text: summaryText(st),
         stamp: done ? fmtSec(st.duration_ms) + ' · 토큰 +' + fmtInt((st.input_tokens ?? 0) + (st.output_tokens ?? 0)) : undefined,
         next: done ? nextActionLabel(st.next_action) || undefined : undefined,
       });
