@@ -126,6 +126,19 @@
   color: var(--color-muted);
 }
 
+.note {
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--color-muted);
+}
+
 .noOps {
   padding-top: 4px;
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
 }

@@ -64,6 +64,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync
+         * @description 노트 토큰의 사용자 범위에서 사용자 변경만 처리한다. 모델을 호출하지 않는다.
+         */
+        post: operations["sync_v1_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Note
+         * @description 복구용으로 삭제 표식을 포함한 전체 목표·과제를 목표 단위 커서로 나눠 돌려준다.
+         */
+        get: operations["note_v1_note_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/dashboard/runs": {
         parameters: {
             query?: never;
@@ -252,8 +292,9 @@ export interface components {
              */
             goal_id: string;
             title: components["schemas"]["NonEmptyText"];
+            description?: components["schemas"]["NonEmptyText"] | null;
             completion_criteria?: components["schemas"]["NonEmptyText"] | null;
-            category: components["schemas"]["ChallengeCategory"];
+            category: components["schemas"]["ChallengeCategory"] | null;
             sort_order: components["schemas"]["NonNegativeInt"];
             origin: components["schemas"]["Actor"];
             status: components["schemas"]["ChallengeStatus"];
@@ -268,31 +309,50 @@ export interface components {
             split_from_challenge_id?: string | null;
             /** Deleted At */
             deleted_at?: string | null;
+            start_date?: components["schemas"]["WallDate"] | null;
+            start_time?: components["schemas"]["WallTime"] | null;
+            estimated_minutes?: components["schemas"]["NonNegativeInt"] | null;
+            /** Deadline */
+            deadline?: string | null;
+            reminder_base?: components["schemas"]["ReminderBase"] | null;
+            reminder_minutes_before?: components["schemas"]["NonNegativeInt"] | null;
         };
         /** @enum {string} */
         ChallengeCategory: "start" | "sustain" | "finish";
         /**
          * ChallengeDraft
-         * @description 서버가 ID와 상태를 부여하기 전 새 과제의 내용을 검증한다.
+         * @description 서버가 ID와 상태를 부여하기 전 새 과제의 내용과 역할을 검증한다.
          */
         ChallengeDraft: {
             title: components["schemas"]["NonEmptyText"];
+            description?: components["schemas"]["NonEmptyText"] | null;
             completion_criteria?: components["schemas"]["NonEmptyText"] | null;
-            category: components["schemas"]["ChallengeCategory"];
             sort_order: components["schemas"]["NonNegativeInt"];
+            start_date?: components["schemas"]["WallDate"] | null;
+            start_time?: components["schemas"]["WallTime"] | null;
+            estimated_minutes?: components["schemas"]["NonNegativeInt"] | null;
+            /** Deadline */
+            deadline?: string | null;
+            category: components["schemas"]["ChallengeCategory"];
         };
         ChallengePatch: {
             [key: string]: unknown;
         };
         /**
          * ChallengePreview
-         * @description 저장된 과제와 새 과제를 함께 배치한 로드맵 항목이다.
+         * @description 저장된 과제와 새 과제를 함께 배치한 로드맵 항목이다. 사용자 과제는 역할이 없을 수 있다.
          */
         ChallengePreview: {
             title: components["schemas"]["NonEmptyText"];
+            description?: components["schemas"]["NonEmptyText"] | null;
             completion_criteria?: components["schemas"]["NonEmptyText"] | null;
-            category: components["schemas"]["ChallengeCategory"];
             sort_order: components["schemas"]["NonNegativeInt"];
+            start_date?: components["schemas"]["WallDate"] | null;
+            start_time?: components["schemas"]["WallTime"] | null;
+            estimated_minutes?: components["schemas"]["NonNegativeInt"] | null;
+            /** Deadline */
+            deadline?: string | null;
+            category: components["schemas"]["ChallengeCategory"] | null;
             reference: components["schemas"]["ChallengeReference"];
             /**
              * Status
@@ -371,7 +431,7 @@ export interface components {
         ChatInput: components["schemas"]["MessageInput"] | components["schemas"]["ProposalAcceptInput"] | components["schemas"]["ProposalRejectInput"];
         /**
          * ChatRequest
-         * @description 인증 정보와 전체 목표 목록 없이 한 턴의 입력 계약을 받는다.
+         * @description 인증 정보·대화 이력·전체 목표 목록 없이 한 턴의 입력과 사용자 변경을 받는다.
          */
         ChatRequest: {
             /**
@@ -385,13 +445,14 @@ export interface components {
              */
             turn_id: string;
             input: components["schemas"]["ChatInput"];
-            /** History */
-            history?: components["schemas"]["HistoryMessage"][];
             focus?: components["schemas"]["ChatFocus"] | null;
+            client_time: components["schemas"]["ClientTime"];
+            /** Mutations */
+            mutations?: components["schemas"]["UserMutation"][];
         };
         /**
          * ChatResponse
-         * @description 사용자 답변과 저장된 화면 데이터, 확인된 실행 결과를 반환한다.
+         * @description 사용자 답변과 저장된 화면 데이터, 확인된 실행 결과와 노트 상태를 반환한다.
          */
         ChatResponse: {
             /**
@@ -406,8 +467,25 @@ export interface components {
             views?: components["schemas"]["ChatView"][];
             /** Operations */
             operations?: components["schemas"]["OperationResult"][];
+            /** Mutation Results */
+            mutation_results?: components["schemas"]["MutationResult"][];
+            /** Note States */
+            note_states?: components["schemas"]["NoteState"][];
+            error?: components["schemas"]["ErrorDetail"] | null;
         };
         ChatView: components["schemas"]["GoalListView"] | components["schemas"]["GoalDetailView"] | components["schemas"]["ProposalView"] | components["schemas"]["ChangeHistoryView"];
+        /**
+         * ClientTime
+         * @description 앱이 요청을 처음 만든 순간의 시각과 기기 시간대다.
+         */
+        ClientTime: {
+            /**
+             * Now
+             * Format: date-time
+             */
+            now: string;
+            time_zone: components["schemas"]["NonEmptyText"];
+        };
         /**
          * CreateChallengeChange
          * @description 로드맵에 새 과제를 넣는 변경을 표현한다.
@@ -523,6 +601,10 @@ export interface components {
             started_at: string;
             /** Initial Deadline */
             initial_deadline?: string | null;
+            start_date?: components["schemas"]["WallDate"] | null;
+            start_time?: components["schemas"]["WallTime"] | null;
+            estimated_minutes?: components["schemas"]["NonNegativeInt"] | null;
+            reminder_base?: components["schemas"]["ReminderBase"] | null;
             reminder_minutes_before?: components["schemas"]["NonNegativeInt"] | null;
             /** @default 0 */
             adjustment_count: components["schemas"]["NonNegativeInt"];
@@ -613,7 +695,7 @@ export interface components {
         };
         /**
          * HistoryMessage
-         * @description 이전 대화의 사용자·AI 발화만 제한된 길이로 전달한다.
+         * @description 서버가 같은 대화의 요청 기록으로 구성한 이전 사용자·AI 발화다.
          */
         HistoryMessage: {
             /**
@@ -621,7 +703,7 @@ export interface components {
              * @enum {string}
              */
             role: "user" | "assistant";
-            text: components["schemas"]["MessageText"];
+            text: components["schemas"]["NonEmptyText"];
         };
         JsonObject: {
             [key: string]: components["schemas"]["JsonValue"];
@@ -641,7 +723,41 @@ export interface components {
         };
         MessageText: string;
         /** @enum {string} */
-        MutationAction: "create_goal" | "update_goal_details" | "create_proposal" | "apply_proposal" | "set_completion" | "set_goal_reminder" | "clear_goal_reminder";
+        MutationAction: "create_goal" | "update_goal_details" | "create_proposal" | "apply_proposal" | "set_completion" | "set_schedule" | "set_reminder";
+        /** @enum {string} */
+        MutationOperation: "create" | "update" | "delete";
+        /** @enum {string} */
+        MutationOutcome: "applied" | "unchanged" | "target_deleted" | "superseded" | "already_exists" | "rejected";
+        /**
+         * MutationResult
+         * @description 변경 번호별 처리 완료 결과와 반영하지 않은 이유를 전달한다.
+         */
+        MutationResult: {
+            /**
+             * Mutation Id
+             * Format: uuid
+             */
+            mutation_id: string;
+            status: components["schemas"]["MutationOutcome"];
+            error?: components["schemas"]["ErrorDetail"] | null;
+        };
+        /**
+         * MutationValues
+         * @description 사용자가 바꾼 항목만 받는다. 생략은 유지, 명시적 null은 비우기다.
+         */
+        MutationValues: {
+            /** Title */
+            title?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Completed */
+            completed?: boolean | null;
+            sort_order?: components["schemas"]["NonNegativeInt"] | null;
+            start_date?: components["schemas"]["WallDate"] | null;
+            start_time?: components["schemas"]["WallTime"] | null;
+            estimated_minutes?: components["schemas"]["NonNegativeInt"] | null;
+            reminder?: components["schemas"]["ReminderValue"] | null;
+        };
         /**
          * NewChallenge
          * @description 저장 전의 새 과제를 제안서 안의 임시 키와 연결한다.
@@ -665,6 +781,27 @@ export interface components {
         NonEmptyText: string;
         NonNegativeInt: number;
         /**
+         * NotePage
+         * @description 삭제 표식을 포함한 목표 단위 노트 상태와 다음 위치를 반환한다.
+         */
+        NotePage: {
+            /** Note States */
+            note_states: components["schemas"]["NoteState"][];
+            next_cursor?: components["schemas"]["NonEmptyText"] | null;
+        };
+        /**
+         * NoteState
+         * @description 목표와 삭제 과제를 포함한 전체 과제를 같은 시점의 목표 버전과 함께 전달한다.
+         */
+        NoteState: {
+            goal: components["schemas"]["Goal"];
+            /** Challenges */
+            challenges?: components["schemas"]["Challenge"][];
+            revision: components["schemas"]["NonNegativeInt"];
+        };
+        /** @enum {string} */
+        NoteTargetType: "goal" | "challenge";
+        /**
          * OperationResult
          * @description 실제 도구 결과를 바탕으로 이번 요청의 변경 처리 상태를 전달한다.
          */
@@ -682,6 +819,7 @@ export interface components {
         };
         /** @enum {string} */
         OperationStatus: "applied" | "unchanged" | "failed" | "unknown";
+        PositiveInt: number;
         /**
          * Proposal
          * @description 사용자에게 제시한 변경 내용과 실제 반영 여부를 전달한다.
@@ -768,6 +906,16 @@ export interface components {
              */
             type: "proposal";
             data: components["schemas"]["Proposal"];
+        };
+        /** @enum {string} */
+        ReminderBase: "start" | "deadline";
+        /**
+         * ReminderValue
+         * @description 알림의 기준과 몇 분 전인지를 하나의 항목으로 받는다.
+         */
+        ReminderValue: {
+            base: components["schemas"]["ReminderBase"];
+            minutes_before: components["schemas"]["NonNegativeInt"];
         };
         /**
          * RunDetailResponse
@@ -944,6 +1092,24 @@ export interface components {
         /** @enum {string} */
         StepKind: "model" | "tool" | "server";
         /**
+         * SyncRequest
+         * @description 대화 없이 사용자 변경 목록만 전달한다.
+         */
+        SyncRequest: {
+            /** Mutations */
+            mutations: components["schemas"]["UserMutation"][];
+        };
+        /**
+         * SyncResponse
+         * @description 변경별 결과와 대상 목표의 최신 상태를 반환한다.
+         */
+        SyncResponse: {
+            /** Mutation Results */
+            mutation_results?: components["schemas"]["MutationResult"][];
+            /** Note States */
+            note_states?: components["schemas"]["NoteState"][];
+        };
+        /**
          * ToolStat
          * @description 도구별 호출·실패 건수와 평균 소요시간이다.
          */
@@ -993,6 +1159,34 @@ export interface components {
             action: "update_goal";
             values: components["schemas"]["GoalPatch"];
         };
+        /**
+         * UserMutation
+         * @description 앱이 발급한 번호와 기기 안 순서로 사용자 변경 하나를 식별한다.
+         */
+        UserMutation: {
+            /**
+             * Mutation Id
+             * Format: uuid
+             */
+            mutation_id: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            seq: components["schemas"]["PositiveInt"];
+            target_type: components["schemas"]["NoteTargetType"];
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            operation: components["schemas"]["MutationOperation"];
+            /** Goal Id */
+            goal_id?: string | null;
+            base_revision?: components["schemas"]["NonNegativeInt"] | null;
+            values?: components["schemas"]["MutationValues"];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1006,6 +1200,9 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** Format: date */
+        WallDate: string;
+        WallTime: string;
     };
     responses: never;
     parameters: never;
@@ -1080,6 +1277,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_v1_sync_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    note_v1_note_get: {
+        parameters: {
+            query?: {
+                cursor?: components["schemas"]["NonEmptyText"] | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotePage"];
                 };
             };
             /** @description Validation Error */

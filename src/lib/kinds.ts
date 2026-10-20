@@ -33,7 +33,11 @@ export function iconKindOf(kind: StepKind, toolKind?: ToolKind | null): IconKind
   return kind;
 }
 
-/** 도구 표기 순서. 호출 수가 같을 때의 정렬 기준이다. */
+/**
+ * 도구 표기 순서. 호출 수가 같을 때의 정렬 기준이다.
+ * `set_goal_reminder`·`clear_goal_reminder`는 `set_schedule`·`set_reminder`로 바뀌었지만
+ * 예전 실행 기록에는 남아 있어서 뒤에 둔다. 도구 종류(조회·변경)는 기록이 가진 `tool_kind`를 따른다.
+ */
 export const TOOL_ORDER = [
   'search_goals',
   'get_goal',
@@ -44,6 +48,8 @@ export const TOOL_ORDER = [
   'create_proposal',
   'apply_proposal',
   'set_completion',
+  'set_schedule',
+  'set_reminder',
   'set_goal_reminder',
   'clear_goal_reminder',
 ];

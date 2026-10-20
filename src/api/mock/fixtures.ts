@@ -9,6 +9,8 @@ import type {
   GoalDetail,
   HistoryMessage,
   JsonObject,
+  MutationResult,
+  NoteState,
   OperationResult,
   Proposal,
   ProposalChange,
@@ -31,6 +33,9 @@ const TOOL_KIND: Record<string, ToolKind> = {
   create_proposal: 'mutation',
   apply_proposal: 'mutation',
   set_completion: 'mutation',
+  set_schedule: 'mutation',
+  set_reminder: 'mutation',
+  // set_schedule·set_reminder로 바뀌기 전의 이름. 예전 실행 기록에는 남아 있다.
   set_goal_reminder: 'mutation',
   clear_goal_reminder: 'mutation',
 };
@@ -86,7 +91,11 @@ interface PItem {
   id?: string;
   title: string;
   criteria?: string;
-  category: Cat;
+  /** 사용자가 직접 만든 과제는 역할(category)이 없다. */
+  category: Cat | null;
+  start_date?: string;
+  start_time?: string;
+  estimated_minutes?: number;
   status?: 'completed';
   split?: boolean;
 }
@@ -101,11 +110,20 @@ interface PSrc {
   changes: ProposalChange[];
 }
 
+/** 제안서 과제의 예정 시작·예상 소요 시간. 정해진 것만 담는다. */
+function scheduleOf(it: PItem) {
+  return {
+    ...(it.start_date ? { start_date: it.start_date } : {}),
+    ...(it.start_time ? { start_time: it.start_time } : {}),
+    ...(it.estimated_minutes != null ? { estimated_minutes: it.estimated_minutes } : {}),
+  };
+}
+
 const GOAL_PORTFOLIO = { title: '포트폴리오 공개', criteria: '대표 프로젝트 3개를 공개 페이지에 게시', deadline: '2026-10-31T23:59:00+09:00' };
 
 // 제안서 카드와 create_proposal 인자는 같은 정의에서 만든다(changes와 result_preview가 정확히 같아야 하는 서버 규칙).
 const P9_ITEMS: PItem[] = [
-  { key: 'c1', title: '공개할 프로젝트 3개 고르기', criteria: '프로젝트 이름 3개를 적어 둠', category: 'start' },
+  { key: 'c1', title: '공개할 프로젝트 3개 고르기', criteria: '프로젝트 이름 3개를 적어 둠', category: 'start', start_date: '2026-10-20', start_time: '09:00', estimated_minutes: 30 },
   { key: 'c2', title: '프로젝트별 보여줄 내용 적기', category: 'sustain' },
   { key: 'c3', title: '소개 페이지 만들기', category: 'sustain' },
   { key: 'c4', title: '게시한 사이트 확인하기', category: 'finish' },
@@ -121,7 +139,7 @@ const P9: PSrc = {
   changes: P9_ITEMS.map((it, i) => ({
     action: 'create_challenge' as const,
     temp_key: it.key!,
-    values: { title: it.title, ...(it.criteria ? { completion_criteria: it.criteria } : {}), category: it.category, sort_order: i + 1 },
+    values: { title: it.title, ...(it.criteria ? { completion_criteria: it.criteria } : {}), ...scheduleOf(it), category: it.category!, sort_order: i + 1 },
   })),
 };
 const P12: PSrc = {
@@ -159,6 +177,7 @@ function previewOf(p: PSrc): JsonObject {
       reference: (it.id ? { type: 'existing', challenge_id: it.id } : { type: 'new', temp_key: it.key! }) as JsonObject,
       title: it.title,
       ...(it.criteria ? { completion_criteria: it.criteria } : {}),
+      ...scheduleOf(it),
       category: it.category,
       sort_order: i + 1,
       status: it.status ?? 'incomplete',
@@ -191,7 +210,7 @@ const GOAL_DETAIL: Record<string, GoalDetail> = {
     goal: {
       id: 'g-1', user_id: USER_ID, title: '포트폴리오 공개', status: 'in_progress', initial_title: '포트폴리오 공개',
       completion_criteria: GOAL_PORTFOLIO.criteria, current_deadline: GOAL_PORTFOLIO.deadline, initial_deadline: GOAL_PORTFOLIO.deadline,
-      started_at: '2026-10-12T21:00:00+09:00', adjustment_count: 0,
+      started_at: '2026-10-12T21:00:00+09:00', adjustment_count: 0, start_date: '2026-10-20', start_time: '09:00',
     },
     challenges: [],
   },
@@ -199,11 +218,11 @@ const GOAL_DETAIL: Record<string, GoalDetail> = {
     goal: {
       id: 'g-1', user_id: USER_ID, title: '포트폴리오 공개', status: 'in_progress', initial_title: '포트폴리오 공개',
       completion_criteria: GOAL_PORTFOLIO.criteria, current_deadline: GOAL_PORTFOLIO.deadline, initial_deadline: GOAL_PORTFOLIO.deadline,
-      started_at: '2026-10-12T21:00:00+09:00', adjustment_count: 0,
+      started_at: '2026-10-12T21:00:00+09:00', adjustment_count: 0, start_date: '2026-10-20', start_time: '09:00',
     },
     challenges: P9_ITEMS.map((it, i) => ({
       id: 'c-1' + (i + 1), goal_id: 'g-1', title: it.title, completion_criteria: it.criteria ?? null, category: it.category,
-      sort_order: i + 1, origin: 'agent' as const, status: 'incomplete' as const, created_at: '2026-10-19T09:00:00+09:00',
+      sort_order: i + 1, origin: 'agent' as const, status: 'incomplete' as const, created_at: '2026-10-19T09:00:00+09:00', ...scheduleOf(it),
     })),
   },
   T24: {
@@ -211,6 +230,8 @@ const GOAL_DETAIL: Record<string, GoalDetail> = {
     challenges: [
       { id: 'c-31', goal_id: 'g-3', title: '단어장 1회독', category: 'start', sort_order: 1, origin: 'agent', status: 'completed', created_at: '2026-10-01T10:05:00+09:00', completed_at: '2026-10-19T15:10:00+09:00' },
       { id: 'c-32', goal_id: 'g-3', title: 'LC 파트 2 풀어 보기', category: 'sustain', sort_order: 2, origin: 'agent', status: 'incomplete', created_at: '2026-10-01T10:05:00+09:00' },
+      // 사용자가 직접 만든 과제는 역할(category)이 없고, 시간 속성을 직접 정할 수 있다.
+      { id: 'c-33', goal_id: 'g-3', title: '모의고사 1회 풀기', description: '실전처럼 시간을 재고 푼다.', category: null, sort_order: 3, origin: 'user', status: 'incomplete', created_at: '2026-10-19T14:20:00+09:00', start_date: '2026-10-24', start_time: '10:00', estimated_minutes: 120, deadline: '2026-10-25T23:59:00+09:00' },
     ],
   },
   T01: {
@@ -280,23 +301,23 @@ const CASES: CaseSrc[] = [
     steps: [
       M(7300, 5800, 150, 90, 1500, '알림을 설정할 목표를 찾는다.', 'search_goals'),
       T('search_goals', 41, 'success', { query: '포트폴리오' }, { status: 'success', goals: [{ id: 'g-1', title: '포트폴리오 공개' }], next_cursor: null }),
-      M(7800, 7100, 110, 60, 1300, '기한이 있어야 알림을 걸 수 있다. 기한을 확인한다.', 'get_goal'),
-      T('get_goal', 50, 'success', { goal_id: 'g-1' }, { status: 'success', data: { goal: { id: 'g-1', current_deadline: '2026-10-31T23:59:00+09:00', reminder_minutes_before: null } } }),
-      M(8500, 7700, 160, 90, 1500, '기한이 있다. 사용자가 명시한 30분 전으로 저장한다.', 'set_goal_reminder'),
-      T('set_goal_reminder', 2100, 'failed', { goal_id: 'g-1', reminder_minutes_before: 30 }, { status: 'failed', error: { code: 'dependency_unavailable', message: '저장소에 연결할 수 없어요.', retryable: true } }, { code: 'dependency_unavailable', message: '저장소에 연결할 수 없어요.' }),
+      M(7800, 7100, 110, 60, 1300, '지금은 목표의 예정 시작 기준 알림만 걸 수 있다. 예정 시작이 있는지 확인한다.', 'get_goal'),
+      T('get_goal', 50, 'success', { goal_id: 'g-1' }, { status: 'success', data: { goal: { id: 'g-1', start_date: '2026-10-20', start_time: '09:00', reminder_base: null, reminder_minutes_before: null } } }),
+      M(8500, 7700, 160, 90, 1500, '예정 시작이 있다. 사용자가 명시한 30분 전을 시작 기준 알림으로 저장한다.', 'set_reminder'),
+      T('set_reminder', 2100, 'failed', { target_type: 'goal', target_id: 'g-1', base: 'start', minutes_before: 30 }, { status: 'failed', error: { code: 'dependency_unavailable', message: '저장소에 연결할 수 없어요.', retryable: true } }, { code: 'dependency_unavailable', message: '저장소에 연결할 수 없어요.' }),
       M(8900, 8300, 190, 70, 1400, '저장에 실패했다. 성공했다고 말하지 않고 다시 시도하도록 안내한다.', 'final'),
       FAIL_SWAP,
     ],
-    reply: { message: '저장소에 연결할 수 없어요.', options: [], views: [], ops: [['set_goal_reminder', 'goal', 'g-1', 'failed']] } },
+    reply: { message: '저장소에 연결할 수 없어요.', options: [], views: [], ops: [['set_reminder', 'goal', 'g-1', 'failed']] } },
   { id: 'T21', title: '저장 결과 unknown 뒤 추가 변경 차단', conv: 'c-toeic', input: msg('LC 파트 2도 체크하고 토익 알림은 꺼줘'), path: 'model', status: 'outcome_unknown',
     steps: [
       M(7350, 5800, 190, 120, 1600, '두 가지를 요청했다. 먼저 토익 목표와 과제를 찾는다.', 'search_goals'),
       T('search_goals', 39, 'success', { query: '토익' }, { status: 'success', goals: [{ id: 'g-3', title: '토익 850점 받기' }], next_cursor: null }),
       M(7900, 7200, 150, 90, 1500, "목록에서 c-32가 'LC 파트 2 풀어 보기'다. 완료 체크부터 한다.", 'set_completion'),
       T('set_completion', 9000, 'unknown', { target_type: 'challenge', target_id: 'c-32', completed: true }, { status: 'unknown', error: { code: 'outcome_unknown', message: '반영 여부를 확인하지 못했어요. 다시 조회해야 해요.', retryable: true } }, { code: 'outcome_unknown', message: '반영 여부를 확인하지 못했어요. 다시 조회해야 해요.' }),
-      M(8300, 7800, 180, 140, 1700, '체크 결과가 unknown이지만 알림 해제도 요청받았다. clear_goal_reminder를 호출한다.', 'clear_goal_reminder'),
+      M(8300, 7800, 180, 140, 1700, '체크 결과가 unknown이지만 알림 해제도 요청받았다. set_reminder에 minutes_before=null을 보내 해제한다.', 'set_reminder'),
       // 서버는 차단한 변경을 tool 단계가 아니라 막힌 도구 이름·인자를 담은 server 단계 하나로 남긴다.
-      S('mutation_blocked', '앞선 변경이 unknown이라 clear_goal_reminder를 실행하지 않고 conflict로 돌려줌', 1, { tool: 'clear_goal_reminder', args: { goal_id: 'g-3' }, code: 'conflict' }),
+      S('mutation_blocked', '앞선 set_completion의 반영 여부를 몰라 다음 변경을 막았다.', 1, { tool: 'set_reminder', args: { target_type: 'goal', target_id: 'g-3', base: null, minutes_before: null }, code: 'conflict' }),
       M(8700, 8100, 200, 90, 1500, '알림 해제가 막혔다. 실제 상태를 먼저 확인해야 한다고 안내한다.', 'final'),
       FAIL_SWAP,
     ],
@@ -332,57 +353,87 @@ const CASES: CaseSrc[] = [
     reply: { message: '첫 로드맵 제안은 반영됐고, 오늘 받은 과제 분할 제안은 아직 반영 전이에요.', options: ['분할 제안 보기', '지금은 괜찮아요'], views: ['proposal'], ops: [] } },
 ];
 
+// 이전 대화는 서버가 같은 대화의 앞선 턴으로 다시 만든 값이다. 사용자 발화 앞에는 그 턴의 날짜가 붙고,
+// 제안 버튼 턴은 `[제안 수락: 제목]`으로 적히며, 끝나지 않은 턴은 사용자 발화만 남는다.
 type H = [('u' | 'a'), string];
 const PORTFOLIO_SETUP: H[] = [
-  ['u', '포트폴리오 공개를 목표로 추가해줘'],
+  ['u', '[2026-10-12] 포트폴리오 공개를 목표로 추가해줘'],
   ['a', "'포트폴리오 공개' 목표를 추가했어요. 기한은 언제로 할까요?"],
-  ['u', '10월 31일까지. 대표 프로젝트 3개를 게시하면 끝이야'],
+  ['u', '[2026-10-12] 10월 31일까지. 대표 프로젝트 3개를 게시하면 끝이야'],
   ['a', '기한과 완료 기준을 저장했어요. 이어서 로드맵을 만들어 볼까요?'],
 ];
 const TOEIC_START: H[] = [
-  ['u', '토익 목표 다음에 뭐 하면 돼?'],
+  ['u', '[2026-10-17] 토익 목표 다음에 뭐 하면 돼?'],
   ['a', "'단어장 1회독'부터 해 보세요. 하루 30분이면 충분해요."],
 ];
 const HIST: Record<string, H[]> = {
   T10: PORTFOLIO_SETUP,
   T20: PORTFOLIO_SETUP.concat([
-    ['u', '로드맵을 제안해줘.'],
+    ['u', '[2026-10-18] 로드맵을 제안해줘.'],
     ['a', "프로젝트 고르기부터 게시 확인까지 4단계로 제안했어요. 먼저 '공개할 프로젝트 3개 고르기'부터 시작해 보세요."],
   ]),
   T18: [
-    ['u', '방 정리 목표가 너무 진행이 안 돼'],
+    ['u', '[2026-10-16] 방 정리 목표가 너무 진행이 안 돼'],
     ['a', '어디서 막히는지 알려 주시면 과제를 조정해 볼게요.'],
-    ['u', '공간별로 다시 나눠줘'],
+    ['u', '[2026-10-17] 공간별로 다시 나눠줘'],
     ['a', '책상, 옷장, 침대 주변 세 단계로 나누는 제안을 만들었어요.'],
   ],
   T24: TOEIC_START,
   T34: [
-    ['u', '포트폴리오 진행 상황 알려줘'],
+    ['u', '[2026-10-18] 포트폴리오 진행 상황 알려줘'],
     ['a', "과제 4개 중 1개를 마쳤어요. 다음은 '프로젝트별 보여줄 내용 적기'예요."],
-    ['u', '마감 전에 알림 받을 수 있어?'],
-    ['a', '네, 기한 몇 분 전에 알려 드릴지 정해 주세요.'],
+    ['u', '[2026-10-19] 시작 전에 알림 받을 수 있어?'],
+    ['a', '네, 시작 몇 분 전에 알려 드릴지 정해 주세요.'],
   ],
   T21: TOEIC_START.concat([
-    ['u', '토익 단어장 1회독 다 했어, 체크해줘'],
+    ['u', '[2026-10-19] 토익 단어장 1회독 다 했어, 체크해줘'],
     ['a', "'단어장 1회독'을 완료로 체크했어요. 다음은 'LC 파트 2 풀어 보기'예요."],
   ]),
+  // 마지막 사용자 발화는 응답을 만들지 못하고 끝난 턴이라 탱글 발화가 없다.
   T15: [
-    ['u', '포트폴리오 다음 할 일 뭐야?'],
+    ['u', '[2026-10-18] 포트폴리오 다음 할 일 뭐야?'],
     ['a', "'프로젝트별 보여줄 내용 적기'예요."],
-    ['u', '이거 너무 막막해'],
+    ['u', '[2026-10-18] 이거 너무 막막해'],
     ['a', '어떤 부분이 막막한지 알려 주시면 더 작게 나눠 볼게요.'],
-    ['u', '뭘 써야 할지 정하는 거랑 자료 모으는 게 섞여 있어'],
-    ['a', '그렇다면 쓰기와 자료 정리를 나누면 좋겠어요. 두 과제로 나눌까요?'],
+    ['u', '[2026-10-19] 뭘 써야 할지 정하는 거랑 자료 모으는 게 섞여 있어'],
   ],
+  // 제안 버튼 턴은 사용자가 누른 버튼과 제안의 목표 제목으로 적힌다.
   T19: [
-    ['u', '포트폴리오 로드맵 다시 보고 싶어'],
+    ['u', '[2026-10-18] [제안 수락: 포트폴리오 공개]'],
+    ['a', '제안을 반영했어요.'],
+    ['u', '[2026-10-19] 포트폴리오 로드맵 다시 보고 싶어'],
     ['a', '지금 로드맵은 4단계예요. 첫 과제는 마쳤어요.'],
-    ['u', '어제 받은 제안이 뭐였더라'],
+    ['u', '[2026-10-19] 조금 전에 받은 제안이 뭐였더라'],
     ['a', '과제 분할 제안이었어요. 반영할지는 아직 정하지 않으셨어요.'],
   ],
 };
 // 응답의 proposal 화면이 보여줄 제안서와 반영 여부.
 const CARD: Record<string, [PSrc, boolean]> = { T10: [P9, false], T20: [P9, true], T15: [P12, false], T19: [P12, false] };
+
+// 앱이 요청에 사용자 변경을 함께 실었을 때만 응답에 변경별 결과(mutation_results)가 있다.
+const MUTATION_RESULTS: Record<string, MutationResult[]> = {
+  T24: [
+    { mutation_id: '5b0e7c1a-2d4f-4e6a-9c31-0a8f6d2e4b71', status: 'applied' },
+    { mutation_id: '9e2a4f60-7b13-4c85-a1d9-3f5c8e0b6a42', status: 'unchanged' },
+  ],
+  T21: [
+    { mutation_id: 'c4d81f35-0a96-4b27-8e53-6d1b9a7f2c08', status: 'superseded' },
+    {
+      mutation_id: '2f7a9d14-e5c3-4086-b1a2-84d6c0e93f57',
+      status: 'rejected',
+      error: { code: 'unsupported_operation', message: '지금은 목표의 시작 시각 기준 알림만 설정할 수 있어요.', retryable: false },
+    },
+  ],
+};
+
+// 응답이 함께 돌려주는 목표의 최신 상태(note_states). [GOAL_DETAIL 키, 목표 버전]
+const NOTE_STATES: Record<string, [string, number]> = { T01: ['T01', 1], T20: ['T20', 3], T24: ['T24', 7], T21: ['T24', 7] };
+
+function noteStatesOf(caseId: string): NoteState[] {
+  const src = NOTE_STATES[caseId];
+  const detail = src ? GOAL_DETAIL[src[0]] : undefined;
+  return src && detail ? [{ goal: detail.goal, challenges: detail.challenges, revision: src[1] }] : [];
+}
 
 const TF = [1.0, 0.94, 1.08, 1.03];
 const DF = [1.0, 1.15, 0.9, 1.3];
@@ -529,6 +580,8 @@ function buildCaseRuns(): RunDetailResponse[] {
         options: c.reply.options,
         views: viewsOf(c),
         operations: opsOf(c),
+        mutation_results: MUTATION_RESULTS[c.id] ?? [],
+        note_states: noteStatesOf(c.id),
       };
       runs.push({
         run: {
@@ -561,29 +614,39 @@ interface ErrorRunSrc {
   input: string;
   history: H[];
   steps: StepSrc[];
-  response: ErrorResponse | null;
+  response: ErrorResponse | ChatResponse | null;
 }
 
-// 응답 오류 상태 예시. 하나는 시간 초과 오류 응답, 하나는 처리 중 중단돼 응답이 없다.
+// 응답 오류 상태 예시. 하나는 시간 초과로 답변은 실패했지만 이미 반영된 변경이 있어서 error를 담은 대화 응답,
+// 하나는 처리 중 중단돼 응답이 없다. 확인된 결과가 없는 순수 오류 응답(ErrorResponse)은 단위 테스트가 다룬다.
+const TIMEOUT_ERROR = { code: 'execution_timeout' as const, message: '처리 시간이 초과됐어요. 반영된 작업은 실행 결과에서 확인해 주세요.', retryable: false };
 const ERROR_RUNS: ErrorRunSrc[] = [
   {
     index: 4,
-    input: '이번 주에 할 일 정리해서 알려줘',
+    input: '포트폴리오 시작을 내일 오전 10시로 바꾸고 이번 주 할 일 정리해줘',
     history: [],
     steps: [
-      M(7250, 5800, 160, 100, 1500, '이번 주 할 일을 모으려면 진행 중인 목표부터 찾아야 한다.', 'search_goals'),
-      T('search_goals', 44, 'success', { query: '' }, { status: 'success', goals: [{ id: 'g-1', title: '포트폴리오 공개' }, { id: 'g-3', title: '토익 850점 받기' }], next_cursor: null }),
-      M(7900, 7200, 140, 80, 28000, '목표가 둘이다. 각 목표의 남은 과제를 확인한다.', 'get_goal'),
+      M(7250, 5800, 160, 100, 1500, '시작 시각을 바꿀 목표부터 찾아야 한다.', 'search_goals'),
+      T('search_goals', 44, 'success', { query: '포트폴리오' }, { status: 'success', goals: [{ id: 'g-1', title: '포트폴리오 공개' }], next_cursor: null }),
+      M(7900, 7200, 140, 80, 1600, '목표가 하나로 특정된다. 사용자가 말한 예정 시작 날짜와 시각만 바꾼다. 마감은 건드리지 않는다.', 'set_schedule'),
+      T('set_schedule', 95, 'applied', { target_type: 'goal', target_id: 'g-1', start_date: '2026-10-20', start_time: '10:00' }, { status: 'applied', target: { target_type: 'goal', data: { id: 'g-1', title: '포트폴리오 공개', start_date: '2026-10-20', start_time: '10:00' } } }),
+      M(8300, 7800, 150, 90, 28000, '시작 시각이 바뀌었다. 이번 주 할 일을 모으려고 남은 과제를 확인한다.', 'get_goal'),
     ],
-    response: { turn_id: '5c0ffee1-41c2-9b7e-5c0fa0d1', error: { code: 'execution_timeout', message: '응답 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.', retryable: true } },
+    response: {
+      turn_id: '5c0ffee1-41c2-9b7e-5c0fa0d1',
+      message: TIMEOUT_ERROR.message,
+      options: [],
+      views: [],
+      operations: [{ action: 'set_schedule', target_type: 'goal', target_id: 'g-1', status: 'applied' }],
+      mutation_results: [],
+      note_states: [{ goal: { ...GOAL_DETAIL['T10']!.goal, start_time: '10:00' }, challenges: [], revision: 4 }],
+      error: TIMEOUT_ERROR,
+    },
   },
   {
     index: 21,
     input: '토익 목표 기한을 11월 말로 미뤄줘',
-    history: [
-      ['u', '토익 목표 다음에 뭐 하면 돼?'],
-      ['a', "'단어장 1회독'부터 해 보세요. 하루 30분이면 충분해요."],
-    ],
+    history: TOEIC_START,
     steps: [
       M(7300, 5800, 130, 80, 1400, '기한을 바꿀 목표를 찾는다.', 'search_goals'),
       T('search_goals', 36, 'success', { query: '토익' }, { status: 'success', goals: [{ id: 'g-3', title: '토익 850점 받기' }], next_cursor: null }),

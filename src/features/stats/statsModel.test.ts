@@ -23,7 +23,7 @@ describe('도구 집계', () => {
 
   it('실패율 순 정렬: unknown도 실패로 센다', () => {
     const rows = toolRows(stats, 'rate');
-    expect(rows[0]).toMatchObject({ name: 'set_goal_reminder', fails: 4, rate: 1 });
+    expect(rows[0]).toMatchObject({ name: 'set_reminder', fails: 4, rate: 1 });
     expect(rows.find((r) => r.name === 'set_completion')).toMatchObject({ count: 8, fails: 4, rate: 0.5 });
     const byCount = toolRows(stats, 'count');
     expect(byCount[0]!.name).toBe('search_goals');
@@ -54,6 +54,6 @@ describe('비율·케이스·KPI', () => {
     const input = all.reduce((a, r) => a + r.input_tokens, 0);
     const cached = all.reduce((a, r) => a + r.cached_tokens, 0);
     expect(tiles[2]!.value).toBe(((cached / input) * 100).toFixed(1) + '%');
-    expect(tiles[3]!.sub).toBe('최대 29.7s');
+    expect(tiles[3]!.sub).toBe('최대 31.3s');
   });
 });

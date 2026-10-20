@@ -52,6 +52,19 @@
   color: var(--color-body);
 }
 
+.day {
+  margin-right: 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.unanswered {
+  margin-left: 8px;
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--color-muted);
+}
+
 .input {
   font-size: 17px;
   line-height: 1.47;

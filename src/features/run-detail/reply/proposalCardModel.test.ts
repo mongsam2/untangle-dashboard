@@ -24,6 +24,21 @@ describe('제안서 카드', () => {
     expect(card.removed).toEqual([]);
   });
 
+  it('과제의 예정 시작·예상 소요 시간을 보여주고, 정해진 것이 없으면 비운다', () => {
+    const card = proposalCardOf(proposalOf('T10').p);
+    expect(card.items[0]!.schedule).toBe('10월 20일 09:00 · 30분');
+    expect(card.items.slice(1).map((i) => i.schedule)).toEqual(['', '', '']);
+  });
+
+  it('사용자가 만든 과제는 역할이 없고 마감만 있을 수 있다', () => {
+    const { p } = proposalOf('T10');
+    const roadmap = [
+      { ...p.result_preview!.roadmap![0]!, category: null, start_date: null, start_time: null, estimated_minutes: 90, deadline: '2026-10-25T23:59:00+09:00' },
+    ];
+    const card = proposalCardOf({ ...p, result_preview: { ...p.result_preview!, roadmap } });
+    expect(card.items[0]).toMatchObject({ category: '', schedule: '90분 · 기한 10월 25일 23:59' });
+  });
+
   it('수락 직행은 반영됨', () => {
     expect(proposalCardOf(proposalOf('T20').p).applied).toBe(true);
   });

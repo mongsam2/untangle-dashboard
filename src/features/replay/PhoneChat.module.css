@@ -50,6 +50,19 @@
   color: var(--color-on-dark);
 }
 
+.day {
+  align-self: center;
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--color-muted);
+}
+
+.button {
+  background: var(--color-canvas);
+  border: 1px solid var(--color-action);
+  color: var(--color-action);
+}
+
 .agent {
   align-self: flex-start;
   border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) 4px;
