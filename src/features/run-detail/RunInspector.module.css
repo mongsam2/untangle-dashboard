@@ -10,6 +10,12 @@
   cursor: pointer;
 }
 
+/* 어두운 머리 영역 위의 보조 버튼 */
+.onDark {
+  border-color: var(--color-link-on-dark);
+  color: var(--color-link-on-dark);
+}
+
 .badges {
   display: flex;
   flex-wrap: wrap;

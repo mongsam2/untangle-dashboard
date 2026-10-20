@@ -4,9 +4,10 @@
 
 - **요청 목록**: KPI, 출처·처리 경로·상태 필터, 요청 표
 - **요청 인스펙터**: 단계 타임라인, 토큰 구성, 최종 응답(제안서 카드, 실행 결과, 사용자 변경 결과, 노트 상태, 오류)과 서버가 구성한 이전 대화, 모델 호출별 토큰 표
+- **대화 목록·대화 인스펙터**: 같은 대화의 요청을 묶어 보고, 턴마다 사용자 입력 → 단계 → 최종 응답을 쌓으며 그 턴까지의 호출·토큰·비용 합계를 붙임
 - **케이스 인스펙터**: 테스트 케이스별 평균 수치와 실행 목록
 - **집계**: 도구 호출 도넛·실패율, 요청당 토큰 밀도 곡선, 처리 경로·상태 비율, 케이스 표
-- **재생**: 이전 대화 → 사용자 입력 → 단계 → 최종 응답을 박자에 맞춰 다시 보여줌
+- **재생**: 이전 대화 → 사용자 입력 → 단계 → 최종 응답을 박자에 맞춰 다시 보여줌. 대화 재생은 턴을 이어 가며 앞 턴의 단계 카드와 누적 토큰·비용을 계속 쌓음
 
 ## 빠른 시작: dev 기록 보기
 
@@ -95,7 +96,7 @@
 | 백엔드 경유 | `live` + `ADMIN_API_URL` 있음 | 프록시가 `/v1/dashboard/*`를 `{ADMIN_API_URL}/api/v1/admin/tangle/dashboard/*`로 바꾸고 `X-Admin-Key` 헤더를 붙임 |
 | 탱글 직접 | `live` + `ADMIN_API_URL` 없음 | 프록시가 `/v1/*`를 `TANGLE_SERVER_URL`로 넘기고 `Authorization: Bearer …` 헤더를 붙임 |
 
-- **mock**: 예시 데이터 50건(테스트 케이스 11개 × 4회, 실제 요청 4건, 응답 오류 2건)으로 네 조회 API를 흉내 냄. 필터·커서 페이지·요약·집계를 서버 SQL과 같은 규칙으로 계산(평균·합계에서 null 제외, 케이스는 ID 순, `token_samples`는 모델을 부른 요청만, 범위를 벗어난 `limit`·조건이 다른 커서는 422, 없는 대상은 404)
+- **mock**: 예시 데이터 50건(테스트 케이스 11개 × 4회, 실제 요청 4건, 응답 오류 2건)으로 여섯 조회 API를 흉내 냄. 필터·커서 페이지·요약·집계를 서버 SQL과 같은 규칙으로 계산(평균·합계에서 null 제외, 케이스는 ID 순, `token_samples`는 모델을 부른 요청만, 범위를 벗어난 `limit`·조건이 다른 커서는 422, 없는 대상은 404)
 - **백엔드 경유**: dev·prod 탱글 서버는 내부망에만 있어 직접 못 붙음. 백엔드 운영자 API(`/api/v1/admin/tangle/dashboard/*`)가 탱글 대시보드 토큰을 붙여 중계. 백엔드에 `UNTANGLE_TANGLE_DASHBOARD_TOKEN` 주입 필요. 이때 `TANGLE_SERVER_URL`·`TANGLE_DASHBOARD_TOKEN`은 안 씀
 - **토큰도 프록시에서만**: `TANGLE_DASHBOARD_TOKEN`도 `ADMIN_KEY`처럼 프록시에서만 헤더로 붙임. 그래서 live 모드는 개발 서버(`bun run dev`)로 띄움. `dist/` 정적 파일만으로는 프록시가 없어 데이터를 못 읽음
 
@@ -228,14 +229,15 @@ KPI·케이스 표의 합계·평균·최대값은 모두 서버가 SQL로 계�
 | `run=<request_id>` | 요청 인스펙터 |
 | `from=<test_case_id>` | 케이스 실행 목록으로 돌아가는 링크 |
 | `case=<test_case_id>` | 케이스 인스펙터 |
-| `replay=1` | 재생 화면 |
+| `conversation=<conversation_id>` | 대화 인스펙터. 요청 인스펙터와 함께 있으면 대화로 돌아가는 링크 |
+| `replay=1` | 재생 화면(요청 인스펙터가 열려 있으면 요청, 대화만 열려 있으면 대화 재생) |
 
 ### 폴더 구조
 
 ```
 src/
   main.tsx
-  app/            App·라우트(/runs, /stats)·AppShell(전역 메뉴, 하위 메뉴, 오른쪽 상세 패널)·URL 화면 상태
+  app/            App·라우트(/runs, /conversations, /stats)·AppShell(전역 메뉴, 하위 메뉴, 오른쪽 상세 패널)·URL 화면 상태
   styles/         tokens.css(색·반경·글꼴 변수), base.css
   api/            schema.d.ts(생성된 응답 타입), types.ts(생성 타입의 별칭), client.ts(mock/live 분기), queries.ts(TanStack Query 훅), mock/(예시 데이터·핸들러·집계)
   lib/            format(숫자·시각), kinds(단계·도구 종류와 색), status(상태·사용자 변경 결과 표기), cases(케이스 제목), input, history(서버가 만든 이전 대화 해석)
@@ -243,9 +245,10 @@ src/
   features/
     runs/         요청 목록: KPI 띠, 필터 패널, 요청 표, 필터 파싱
     run-detail/   요청 인스펙터: 단계 카드, 토큰 막대·표, 사용자 입력, 최종 응답·제안서 카드
+    conversations/ 대화 목록·대화 인스펙터: 대화 표, 턴별 누적 합계
     cases/        케이스 인스펙터
     stats/        집계: 도넛, 도구 표, 토큰 밀도(KDE), 비율 막대, 케이스 표
-    replay/       재생: 대화창, 단계 흐름, 조작 막대, 박자 예약
+    replay/       재생: 대화창, 단계 흐름, 조작 막대, 박자 예약, 대화 재생
 ```
 
 - **순수 계산 분리**: 포맷, KDE, 집계, 재생 박자, 필터 파싱, 제안서 카드는 컴포넌트 밖 함수로 두고 옆의 `*.test.ts`에서 검증

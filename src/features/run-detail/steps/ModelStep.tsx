@@ -1,6 +1,6 @@
 import { fmtInt } from '../../../lib/format';
 import { nextActionLabel, TOK } from '../../../lib/kinds';
-import { tokensOf, type DisplayStep } from '../displaySteps';
+import { summaryText, tokensOf, type DisplayStep } from '../displaySteps';
 import { StepCard } from './StepCard';
 import s from './StepCard.module.css';
 
@@ -30,11 +30,21 @@ export function ModelStep({ step, selected, onSelect }: StepProps) {
       </div>
       <div className={s.summaryBox}>
         <span className={s.summaryTitle}>추론 요약</span>
-        <span className={s.summaryText}>{step.reasoning_summary ?? '추론 요약을 받지 못했어요.'}</span>
+        <span className={s.summaryText}>{summaryText(step)}</span>
+        {hasTranslation(step) && (
+          <details className={s.original}>
+            <summary>원문 보기</summary>
+            <span className={s.originalText}>{step.reasoning_summary}</span>
+          </details>
+        )}
       </div>
       {step.next_action && <div className={s.next}>{nextActionLabel(step.next_action)}</div>}
     </StepCard>
   );
+}
+
+function hasTranslation(step: DisplayStep): boolean {
+  return !!step.reasoning_summary_ko && step.reasoning_summary_ko !== step.reasoning_summary;
 }
 
 export type { StepProps };
