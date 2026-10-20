@@ -51,3 +51,8 @@ export function errorMessageOf(s: AgentStep): string {
   }
   return '';
 }
+
+// 서버가 상세를 처음 열 때 번역해 저장한 한국어 번역본을 먼저 보인다. 번역 전이거나 실패했으면 원문을 보인다.
+export function summaryText(step: Pick<DisplayStep, 'reasoning_summary' | 'reasoning_summary_ko'>): string {
+  return step.reasoning_summary_ko ?? step.reasoning_summary ?? '추론 요약을 받지 못했어요.';
+}

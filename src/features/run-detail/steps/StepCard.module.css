@@ -93,6 +93,22 @@
   letter-spacing: -0.374px;
 }
 
+.original {
+  font-size: 14px;
+  letter-spacing: -0.224px;
+  color: var(--color-body);
+}
+
+.original summary {
+  cursor: pointer;
+}
+
+.originalText {
+  display: block;
+  margin-top: 6px;
+  line-height: 1.47;
+}
+
 .next {
   font-size: 14px;
   letter-spacing: -0.224px;

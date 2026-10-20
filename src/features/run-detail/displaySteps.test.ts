@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MOCK_RUNS } from '../../api/mock/fixtures';
-import { displaySteps, errorMessageOf, SWAP_NOTE, tokensOf } from './displaySteps';
+import { displaySteps, errorMessageOf, summaryText, SWAP_NOTE, tokensOf } from './displaySteps';
 
 const byCase = (id: string) => MOCK_RUNS.find((d) => d.run.test_case_id === id)!;
 
@@ -31,5 +31,15 @@ describe('displaySteps', () => {
     expect(tokensOf({ seq: 1, kind: 'model', started_at: '', duration_ms: 0, input_tokens: 100, cached_tokens: 60, output_tokens: 30, reasoning_tokens: 10 })).toEqual({
       input: 100, cached: 60, output: 30, reasoning: 10, fresh: 40, answer: 20,
     });
+  });
+});
+
+describe('summaryText', () => {
+  it('번역본이 있으면 번역본을, 없으면 원문을, 둘 다 없으면 안내 문구를 보인다', () => {
+    expect(summaryText({ reasoning_summary: 'Find the goal.', reasoning_summary_ko: '목표를 찾는다.' })).toBe(
+      '목표를 찾는다.',
+    );
+    expect(summaryText({ reasoning_summary: 'Find the goal.', reasoning_summary_ko: null })).toBe('Find the goal.');
+    expect(summaryText({ reasoning_summary: null, reasoning_summary_ko: null })).toBe('추론 요약을 받지 못했어요.');
   });
 });

@@ -217,6 +217,8 @@ export interface components {
             cost_usd?: number | null;
             /** Reasoning Summary */
             reasoning_summary?: string | null;
+            /** Reasoning Summary Ko */
+            reasoning_summary_ko?: string | null;
             /** Next Action */
             next_action?: string | null;
             /** Tool Name */
