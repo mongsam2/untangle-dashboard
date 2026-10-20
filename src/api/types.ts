@@ -21,6 +21,8 @@ export type StepKind = Schemas['StepKind'];
 export type RunFilters = Query<'get_stats_v1_dashboard_stats_get'>;
 /** 목록 조회 조건에 페이지 크기와 커서를 더한 것(`GET /runs`의 검색어). */
 export type RunPage = Query<'list_runs_v1_dashboard_runs_get'>;
+/** 대화 목록 조회 조건(`GET /conversations`의 검색어). 출처 필터만 있다. */
+export type ConversationPage = Query<'list_conversations_v1_dashboard_conversations_get'>;
 
 // ── 응답 ───────────────────────────────────────────────────────────────
 
@@ -29,6 +31,10 @@ export type RunSummaryStats = Schemas['RunSummaryStats'];
 export type RunListResponse = Schemas['RunListResponse'];
 export type AgentStep = Schemas['AgentStep'];
 export type RunDetailResponse = Schemas['RunDetailResponse'];
+export type ConversationListItem = Schemas['ConversationListItem'];
+export type ConversationListResponse = Schemas['ConversationListResponse'];
+export type ConversationTurn = Schemas['ConversationTurn'];
+export type ConversationDetailResponse = Schemas['ConversationDetailResponse'];
 export type CaseStat = Schemas['CaseStat'];
 export type CaseDetailResponse = Schemas['CaseDetailResponse'];
 export type ToolStat = Schemas['ToolStat'];

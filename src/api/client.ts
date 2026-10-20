@@ -3,6 +3,9 @@ import { ApiError } from './errors';
 import { createMockHandlers } from './mock/handlers';
 import type {
   CaseDetailResponse,
+  ConversationDetailResponse,
+  ConversationListResponse,
+  ConversationPage,
   RunDetailResponse,
   RunFilters,
   RunListResponse,
@@ -13,6 +16,8 @@ import type {
 export interface DashboardApi {
   listRuns(page: RunPage): Promise<RunListResponse>;
   getRun(requestId: string): Promise<RunDetailResponse>;
+  listConversations(page: ConversationPage): Promise<ConversationListResponse>;
+  getConversation(conversationId: string): Promise<ConversationDetailResponse>;
   getCase(testCaseId: string): Promise<CaseDetailResponse>;
   getStats(filters: RunFilters): Promise<StatsResponse>;
 }
@@ -54,6 +59,8 @@ async function getJson<T>(path: string): Promise<T> {
 const liveApi: DashboardApi = {
   listRuns: (page) => getJson(`/runs${toQuery(page)}`),
   getRun: (id) => getJson(`/runs/${encodeURIComponent(id)}`),
+  listConversations: (page) => getJson(`/conversations${toQuery(page)}`),
+  getConversation: (id) => getJson(`/conversations/${encodeURIComponent(id)}`),
   getCase: (id) => getJson(`/cases/${encodeURIComponent(id)}`),
   getStats: (f) => getJson(`/stats${toQuery(f)}`),
 };
@@ -76,6 +83,8 @@ function mockApi(): DashboardApi {
   return {
     listRuns: (page) => later(() => h.listRuns(page)),
     getRun: (id) => later(() => h.getRun(id)),
+    listConversations: (page) => later(() => h.listConversations(page)),
+    getConversation: (id) => later(() => h.getConversation(id)),
     getCase: (id) => later(() => h.getCase(id)),
     getStats: (f) => later(() => h.getStats(f)),
   };

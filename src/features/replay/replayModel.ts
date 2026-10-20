@@ -36,44 +36,79 @@ export function lastIndex(s: ReplayScript): number {
 
 export const START: ReplayState = { idx: 0, phase: 'anim', playing: true };
 
-/** 재생 중일 때 다음으로 바뀔 상태와 그때까지의 시간. 멈춰 있으면 null. */
-export function nextTick(st: ReplayState, s: ReplayScript): { delay: number; next: ReplayState } | null {
-  if (!st.playing) return null;
+/** 박자 진행 규칙. 요청 재생과 대화 재생이 같은 타이머를 쓴다. */
+export interface Timeline {
+  /** 마지막 박자의 번호 */
+  last: number;
+  /** 박자의 애니메이션 시간과, 끝난 뒤 다음 박자까지 멈추는 시간 */
+  delays(idx: number): { anim: number; hold: number };
+}
+
+export function runTimeline(s: ReplayScript): Timeline {
   const H = s.history.length;
-  const isHist = st.idx < H;
-  if (st.phase === 'anim') return { delay: isHist ? RP_HIST_ANIM : RP_ANIM, next: { ...st, phase: 'done' } };
-  if (st.idx < lastIndex(s)) {
-    const hold = !isHist ? RP_HOLD : s.history[st.idx]!.role === 'assistant' ? RP_REPLY_HOLD : RP_HIST_HOLD;
-    return { delay: hold, next: { ...st, idx: st.idx + 1, phase: 'anim' } };
-  }
+  return {
+    last: lastIndex(s),
+    delays: (idx) => {
+      if (idx >= H) return { anim: RP_ANIM, hold: RP_HOLD };
+      return { anim: RP_HIST_ANIM, hold: s.history[idx]!.role === 'assistant' ? RP_REPLY_HOLD : RP_HIST_HOLD };
+    },
+  };
+}
+
+/** 재생 중일 때 다음으로 바뀔 상태와 그때까지의 시간. 멈춰 있으면 null. */
+export function advance(st: ReplayState, t: Timeline): { delay: number; next: ReplayState } | null {
+  if (!st.playing) return null;
+  const d = t.delays(st.idx);
+  if (st.phase === 'anim') return { delay: d.anim, next: { ...st, phase: 'done' } };
+  if (st.idx < t.last) return { delay: d.hold, next: { ...st, idx: st.idx + 1, phase: 'anim' } };
   return { delay: 0, next: { ...st, playing: false } };
 }
 
-export function isEnded(st: ReplayState, s: ReplayScript): boolean {
-  return st.idx === lastIndex(s) && st.phase === 'done' && !st.playing;
+export function endedIn(st: ReplayState, t: Timeline): boolean {
+  return st.idx === t.last && st.phase === 'done' && !st.playing;
 }
 
-export function toggle(st: ReplayState, s: ReplayScript): ReplayState {
+export function toggleIn(st: ReplayState, t: Timeline): ReplayState {
   if (st.playing) return { ...st, playing: false };
-  if (isEnded(st, s)) return START;
+  if (endedIn(st, t)) return START;
   return { ...st, playing: true };
 }
 
-export function seek(idx: number, s: ReplayScript): ReplayState {
-  return { idx: Math.max(0, Math.min(lastIndex(s), idx)), phase: 'done', playing: false };
+export function seekIn(idx: number, t: Timeline): ReplayState {
+  return { idx: Math.max(0, Math.min(t.last, idx)), phase: 'done', playing: false };
 }
 
 /** 전체 재생 시간(밀리초). 화면 문구용은 아니고 테스트와 검산에 쓴다. */
-export function totalDuration(s: ReplayScript): number {
+export function durationOf(t: Timeline): number {
   let st: ReplayState | null = START;
-  let t = 0;
-  for (let guard = 0; st && guard < 10000; guard++) {
-    const tick: { delay: number; next: ReplayState } | null = nextTick(st, s);
+  let total = 0;
+  for (let guard = 0; st && guard < 100000; guard++) {
+    const tick: { delay: number; next: ReplayState } | null = advance(st, t);
     if (!tick) break;
-    t += tick.delay;
+    total += tick.delay;
     st = tick.next;
   }
-  return t;
+  return total;
+}
+
+export function nextTick(st: ReplayState, s: ReplayScript): { delay: number; next: ReplayState } | null {
+  return advance(st, runTimeline(s));
+}
+
+export function isEnded(st: ReplayState, s: ReplayScript): boolean {
+  return endedIn(st, runTimeline(s));
+}
+
+export function toggle(st: ReplayState, s: ReplayScript): ReplayState {
+  return toggleIn(st, runTimeline(s));
+}
+
+export function seek(idx: number, s: ReplayScript): ReplayState {
+  return seekIn(idx, runTimeline(s));
+}
+
+export function totalDuration(s: ReplayScript): number {
+  return durationOf(runTimeline(s));
 }
 
 // ── 화면 모델 ──────────────────────────────────────────────────────────
@@ -118,11 +153,49 @@ export interface ReplayView {
   ended: boolean;
 }
 
-export function finalTextOf(detail: RunDetailResponse): { text: string; options: string[] } {
+export function finalTextOf(detail: Pick<RunDetailResponse, 'response'>): { text: string; options: string[] } {
   const r = detail.response;
   if (!r) return { text: '(저장된 응답 없음)', options: [] };
   if (isErrorResponse(r)) return { text: r.error.message, options: [] };
   return { text: r.message, options: r.options ?? [] };
+}
+
+/** 단계 하나의 카드. 박자가 끝나야 걸린 시간·결과가 찍힌다. */
+export function stepCard(st: DisplayStep, key: string, current: boolean, anim: boolean, done: boolean): ReplayCard {
+  const base = { key, current, anim, mono: false };
+  if (st.kind === 'model') {
+    return {
+      ...base,
+      kind: 'model',
+      title: '모델 호출 #' + st.modelIndex,
+      text: summaryText(st),
+      stamp: done ? fmtSec(st.duration_ms) + ' · 토큰 +' + fmtInt((st.input_tokens ?? 0) + (st.output_tokens ?? 0)) : undefined,
+      next: done ? nextActionLabel(st.next_action) || undefined : undefined,
+    };
+  }
+  if (st.kind === 'tool') {
+    const kind = st.tool_kind ?? 'query';
+    return {
+      ...base,
+      kind,
+      title: st.tool_name ?? '-',
+      mono: true,
+      args: JSON.stringify(st.arguments ?? {}),
+      bar: anim ? KIND[kind].color : undefined,
+      stamp: done ? fmtSec(st.duration_ms) : undefined,
+      badge: done ? stepTone(st.status) : undefined,
+      error: done && st.error_code ? { code: st.error_code, message: errorMessageOf(st) } : undefined,
+    };
+  }
+  return { ...base, kind: 'server', title: '서버 판단', text: st.note ?? '', textSmall: true };
+}
+
+/** 진행 막대에 찍을 단계 박자의 이름과 색. */
+export function stepBeat(st: DisplayStep): { title: string; color: string } {
+  return {
+    title: st.kind === 'model' ? '모델 호출' : st.kind === 'tool' ? st.tool_name ?? '도구' : '서버 판단',
+    color: st.kind === 'model' ? MODEL_COLOR : st.kind === 'tool' ? (isFailure(st.status) ? 'var(--data-failure)' : KIND[st.tool_kind ?? 'query'].color) : 'var(--color-dot-neutral)',
+  };
 }
 
 export function buildView(detail: RunDetailResponse, s: ReplayScript, p: ReplayState): ReplayView {
@@ -141,34 +214,7 @@ export function buildView(detail: RunDetailResponse, s: ReplayScript, p: ReplayS
       cumCost += st.cost_usd ?? 0;
     }
     if (i > p.idx) return;
-    const anim = i === p.idx && p.phase === 'anim';
-    const done = passed(i);
-    const base = { key: String(st.seq), current: i === p.idx, anim, mono: false };
-    if (st.kind === 'model') {
-      cards.push({
-        ...base,
-        kind: 'model',
-        title: '모델 호출 #' + st.modelIndex,
-        text: summaryText(st),
-        stamp: done ? fmtSec(st.duration_ms) + ' · 토큰 +' + fmtInt((st.input_tokens ?? 0) + (st.output_tokens ?? 0)) : undefined,
-        next: done ? nextActionLabel(st.next_action) || undefined : undefined,
-      });
-    } else if (st.kind === 'tool') {
-      const kind = st.tool_kind ?? 'query';
-      cards.push({
-        ...base,
-        kind,
-        title: st.tool_name ?? '-',
-        mono: true,
-        args: JSON.stringify(st.arguments ?? {}),
-        bar: anim ? KIND[kind].color : undefined,
-        stamp: done ? fmtSec(st.duration_ms) : undefined,
-        badge: done ? stepTone(st.status) : undefined,
-        error: done && st.error_code ? { code: st.error_code, message: errorMessageOf(st) } : undefined,
-      });
-    } else {
-      cards.push({ ...base, kind: 'server', title: '서버 판단', text: st.note ?? '', textSmall: true });
-    }
+    cards.push(stepCard(st, String(st.seq), i === p.idx, i === p.idx && p.phase === 'anim', passed(i)));
   });
   if (p.idx === last) {
     const done = p.phase === 'done';
@@ -185,10 +231,7 @@ export function buildView(detail: RunDetailResponse, s: ReplayScript, p: ReplayS
   const beats: { title: string; color: string }[] = [
     ...s.history.map((h, k) => ({ title: '이전 대화 ' + (k + 1) + ' · ' + (h.role === 'user' ? '사용자' : '탱글'), color: 'var(--color-marker-past)' })),
     { title: '사용자 입력', color: 'var(--color-ink)' },
-    ...s.steps.map((st) => ({
-      title: st.kind === 'model' ? '모델 호출' : st.kind === 'tool' ? st.tool_name ?? '도구' : '서버 판단',
-      color: st.kind === 'model' ? MODEL_COLOR : st.kind === 'tool' ? (isFailure(st.status) ? 'var(--data-failure)' : KIND[st.tool_kind ?? 'query'].color) : 'var(--color-dot-neutral)',
-    })),
+    ...s.steps.map(stepBeat),
     { title: '응답 전송', color: 'var(--color-ink)' },
   ];
   return {

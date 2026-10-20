@@ -64,6 +64,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/chat/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Chat Progress
+         * @description 그 턴의 채팅 토큰으로만 진행 단계를 보여준다. DB와 모델을 부르지 않는다.
+         */
+        get: operations["chat_progress_v1_chat_progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/sync": {
         parameters: {
             query?: never;
@@ -136,6 +156,48 @@ export interface paths {
          * @description 실행 기록과 전체 단계, 저장된 요청·응답 원문을 함께 반환한다.
          */
         get: operations["get_run_v1_dashboard_runs__request_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Conversations
+         * @description 마지막 요청이 최근인 대화부터 커서 페이지로 반환한다.
+         */
+        get: operations["list_conversations_v1_dashboard_conversations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Conversation
+         * @description 대화의 요청을 시간순으로 쌓고 요청마다 단계와 최종 응답을 붙인다.
+         *
+         *     요청이 많아 모델을 여러 번 부르지 않도록 추론 요약은 저장된 번역본만 싣는다.
+         */
+        get: operations["get_conversation_v1_dashboard_conversations__conversation_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -432,6 +494,24 @@ export interface components {
         };
         ChatInput: components["schemas"]["MessageInput"] | components["schemas"]["ProposalAcceptInput"] | components["schemas"]["ProposalRejectInput"];
         /**
+         * ChatProgress
+         * @description 턴의 현재 처리 단계와 앱이 대기 중에 보여줄 문구를 전달한다.
+         */
+        ChatProgress: {
+            /**
+             * Turn Id
+             * Format: uuid
+             */
+            turn_id: string;
+            stage: components["schemas"]["ProgressStage"];
+            tool?: components["schemas"]["NonEmptyText"] | null;
+            label: components["schemas"]["NonEmptyText"];
+            /** @default 0 */
+            step: components["schemas"]["NonNegativeInt"];
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
          * ChatRequest
          * @description 인증 정보·대화 이력·전체 목표 목록 없이 한 턴의 입력과 사용자 변경을 받는다.
          */
@@ -487,6 +567,91 @@ export interface components {
              */
             now: string;
             time_zone: components["schemas"]["NonEmptyText"];
+        };
+        /**
+         * ConversationDetailResponse
+         * @description 대화의 요청을 시간순으로 쌓은 기록이다. 오래된 요청은 상한을 넘으면 뺀다.
+         */
+        ConversationDetailResponse: {
+            conversation: components["schemas"]["ConversationListItem"];
+            /** Turns */
+            turns: components["schemas"]["ConversationTurn"][];
+            /** Omitted Turns */
+            omitted_turns: number;
+        };
+        /**
+         * ConversationListItem
+         * @description 한 대화에 쌓인 요청들의 합계와 처음·마지막 입력 앞부분이다.
+         */
+        ConversationListItem: {
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Turns */
+            turns: number;
+            /** Test Turns */
+            test_turns: number;
+            /** Attention Turns */
+            attention_turns: number;
+            /** Model Calls */
+            model_calls: number;
+            /** Tool Calls */
+            tool_calls: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Cached Tokens */
+            cached_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Reasoning Tokens */
+            reasoning_tokens: number;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /** Duration Ms */
+            duration_ms: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Last Started At
+             * Format: date-time
+             */
+            last_started_at: string;
+            /** First Input Preview */
+            first_input_preview: string | null;
+            /** Last Input Preview */
+            last_input_preview: string | null;
+        };
+        /**
+         * ConversationListResponse
+         * @description 마지막 요청이 최근인 대화부터 한 페이지다.
+         */
+        ConversationListResponse: {
+            /** Items */
+            items: components["schemas"]["ConversationListItem"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
+         * ConversationTurn
+         * @description 대화 안의 요청 하나와 그 실행 단계, 저장된 최종 응답이다.
+         */
+        ConversationTurn: {
+            run: components["schemas"]["RunListItem"];
+            input: components["schemas"]["ChatInput"];
+            /** Response */
+            response: components["schemas"]["ChatResponse"] | components["schemas"]["ErrorResponse"] | null;
+            /** Steps */
+            steps: components["schemas"]["AgentStep"][];
         };
         /**
          * CreateChallengeChange
@@ -822,6 +987,8 @@ export interface components {
         /** @enum {string} */
         OperationStatus: "applied" | "unchanged" | "failed" | "unknown";
         PositiveInt: number;
+        /** @enum {string} */
+        ProgressStage: "waiting" | "thinking" | "tool" | "composing" | "done";
         /**
          * Proposal
          * @description 사용자에게 제시한 변경 내용과 실제 반영 여부를 전달한다.
@@ -943,6 +1110,11 @@ export interface components {
              * Format: uuid
              */
             request_id: string;
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
             /** Test Case Id */
             test_case_id: string | null;
             path: components["schemas"]["RunPath"];
@@ -1292,6 +1464,40 @@ export interface operations {
             };
         };
     };
+    chat_progress_v1_chat_progress_get: {
+        parameters: {
+            query: {
+                conversation_id: string;
+                turn_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatProgress"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     sync_v1_sync_post: {
         parameters: {
             query?: never;
@@ -1418,6 +1624,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_conversations_v1_dashboard_conversations_get: {
+        parameters: {
+            query?: {
+                source?: components["schemas"]["RunSource"];
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_conversation_v1_dashboard_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetailResponse"];
                 };
             };
             /** @description Validation Error */

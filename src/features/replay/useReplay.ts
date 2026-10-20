@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react';
-import { lastIndex, nextTick, seek, START, toggle, type ReplayScript, type ReplayState } from './replayModel';
+import { advance, seekIn, START, toggleIn, type ReplayState, type Timeline } from './replayModel';
 
-// 재생 상태와 타이머. 상태가 바뀔 때마다 다음 박자 하나만 예약한다.
-export function useReplay(script: ReplayScript | null) {
+// 재생 상태와 타이머. 상태가 바뀔 때마다 다음 박자 하나만 예약한다. 요청·대화 재생이 같이 쓴다.
+export function useReplay(timeline: Timeline | null) {
   const [state, setState] = useState<ReplayState>(START);
 
   useEffect(() => {
-    if (!script) return;
-    const tick = nextTick(state, script);
+    if (!timeline) return;
+    const tick = advance(state, timeline);
     if (!tick) return;
     const timer = setTimeout(() => setState(tick.next), tick.delay);
     return () => clearTimeout(timer);
-  }, [state, script]);
+  }, [state, timeline]);
 
   return {
     state,
-    toggle: () => script && setState((s) => toggle(s, script)),
-    prev: () => script && setState((s) => seek(s.idx - 1, script)),
-    next: () => script && setState((s) => seek(Math.min(lastIndex(script), s.idx + 1), script)),
-    seek: (i: number) => script && setState(seek(i, script)),
+    toggle: () => timeline && setState((s) => toggleIn(s, timeline)),
+    prev: () => timeline && setState((s) => seekIn(s.idx - 1, timeline)),
+    next: () => timeline && setState((s) => seekIn(Math.min(timeline.last, s.idx + 1), timeline)),
+    seek: (i: number) => timeline && setState(seekIn(i, timeline)),
   };
 }
