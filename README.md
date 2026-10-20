@@ -31,7 +31,7 @@ bun run dev        # http://localhost:5173
 `VITE_API_MODE`로 고른다. 화면과 조회 훅은 두 모드에서 똑같고, `src/api/client.ts`만 갈린다.
 
 - **mock**(기본): `src/api/mock/`의 예시 데이터 50건(테스트 케이스 11개 × 4회, 실제 요청 4건, 응답 오류 2건)으로 네 조회 API를 흉내 낸다. 필터·커서 페이지·요약·집계를 서버 SQL과 같은 규칙으로 계산한다(평균·합계에서 null 제외, 케이스는 ID 순, `token_samples`는 모델을 부른 요청만, 범위를 벗어난 `limit`·조건이 다른 커서는 422, 없는 대상은 404). 서버 없이 바로 쓸 수 있다.
-- **live**: 개발 서버가 `/v1` 요청을 탱글 서버로 프록시한다. 아래 "실제 API로 실행하기"를 따른다.
+- **live**: 개발 서버가 `/v1` 요청을 프록시한다. 로컬 탱글 서버는 아래 "실제 API로 실행하기", 배포된 탱글은 "배포된 탱글을 백엔드 경유로 보기"를 따른다.
 
 ## 실제 API로 실행하기
 
@@ -101,6 +101,18 @@ bun run dev   # http://localhost:5173
 
 토큰은 `vite.config.ts`의 프록시에서만 `Authorization: Bearer …` 헤더로 붙이고 브라우저 코드로는 내보내지 않는다(`VITE_` 접두사가 없는 변수는 번들에 들어가지 않는다). 그래서 live 모드는 `bun run dev`에서만 동작한다. `.env`를 바꾸면 개발 서버를 다시 시작한다.
 
+### 배포된 탱글을 백엔드 경유로 보기
+
+dev·prod 탱글 서버는 내부망에만 있어 직접 붙을 수 없다. 백엔드 운영자 API(`/api/v1/admin/tangle/dashboard/*`)가 탱글 대시보드 토큰을 붙여 중계하므로 터널 없이 연결된다. 백엔드에 `UNTANGLE_TANGLE_DASHBOARD_TOKEN`이 주입되어 있어야 한다.
+
+```dotenv
+VITE_API_MODE=live
+ADMIN_API_URL=https://dev-api.gbstudio.kr
+ADMIN_KEY=<백엔드 운영자 키>   # SSM /untangle/dev/ADMIN_KEY
+```
+
+`ADMIN_API_URL`이 있으면 프록시가 `/v1/dashboard/*`를 `/api/v1/admin/tangle/dashboard/*`로 바꾸고 `X-Admin-Key` 헤더를 붙인다. 이때 `TANGLE_SERVER_URL`·`TANGLE_DASHBOARD_TOKEN`은 쓰지 않는다. 키가 없거나 틀리면 404, 백엔드에 탱글 토큰이 없으면 503이다.
+
 ### 3. 서버 스키마가 바뀌었을 때
 
 응답 타입의 정본은 서버의 OpenAPI 문서다. 서버의 `schemas/dashboard.py`가 바뀌면 서버를 띄운 상태에서 타입을 다시 만들고 커밋한다.
@@ -140,7 +152,9 @@ bunx openapi-typescript /tmp/openapi.json -o src/api/schema.d.ts
 | 변수 | 기본값 | 의미 |
 |---|---|---|
 | `VITE_API_MODE` | `mock` | `mock` 또는 `live` |
-| `TANGLE_SERVER_URL` | `http://127.0.0.1:8010` | live 모드에서 `/v1`을 넘길 탱글 서버 주소 |
+| `ADMIN_API_URL` | 없음 | 있으면 백엔드 경유. 백엔드 주소(예: `https://dev-api.gbstudio.kr`) |
+| `ADMIN_KEY` | 없음 | 백엔드 운영자 키. 개발 서버 프록시가 `X-Admin-Key` 헤더로 붙인다 |
+| `TANGLE_SERVER_URL` | `http://127.0.0.1:8010` | 백엔드 경유가 아닐 때 `/v1`을 넘길 탱글 서버 주소 |
 | `TANGLE_DASHBOARD_TOKEN` | 없음 | 서버의 같은 이름 설정값. 개발 서버 프록시가 `Authorization: Bearer …` 헤더로 붙인다 |
 
 ## 숫자의 출처
