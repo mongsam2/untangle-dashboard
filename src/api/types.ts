@@ -44,6 +44,12 @@ export type ChatInput = Schemas['ChatInput'];
 export type HistoryMessage = Schemas['HistoryMessage'];
 export type ChatResponse = Schemas['ChatResponse'];
 export type ErrorResponse = Schemas['ErrorResponse'];
+export type ErrorDetail = Schemas['ErrorDetail'];
+export type MutationResult = Schemas['MutationResult'];
+export type MutationOutcome = Schemas['MutationOutcome'];
+export type NoteState = Schemas['NoteState'];
+export type Goal = Schemas['Goal'];
+export type Challenge = Schemas['Challenge'];
 export type ChallengeCategory = Schemas['ChallengeCategory'];
 export type Proposal = Schemas['Proposal'];
 export type ProposalChange = Schemas['ProposalChange'];
@@ -53,6 +59,10 @@ export type GoalDetail = Schemas['GoalDetail'];
 export type OperationResult = Schemas['OperationResult'];
 export type JsonObject = Schemas['JsonObject'];
 
+/**
+ * 대화 응답을 만들지 못한 오류 응답인지. `ChatResponse`도 답변이 실패하면 `error`를 담으므로
+ * `error` 키로 가르지 않고, 대화 응답에만 있는 `message`로 가른다.
+ */
 export function isErrorResponse(r: ChatResponse | ErrorResponse | null): r is ErrorResponse {
-  return r !== null && 'error' in r;
+  return r !== null && !('message' in r);
 }

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { RunPath, RunSource, RunStatus } from '../api/types';
+import type { MutationOutcome, RunPath, RunSource, RunStatus } from '../api/types';
 
 export interface Tone {
   label: string;
@@ -26,6 +26,18 @@ export const STEP_STATUS: Record<string, Tone> = {
   unchanged: { label: '변경 없음', bg: NEUTRAL_BG, fg: 'var(--color-body)', dot: 'var(--color-dot-neutral)' },
   failed: { label: '실패', ...FAIL },
   unknown: { label: 'unknown', ...FAIL },
+};
+
+/** 사용자 변경(`mutation_results`)의 처리 결과. 거절만 실패색이고, 나머지는 서버가 의도한 정상 처리다. */
+export const MUTATION_OUTCOME_ORDER: MutationOutcome[] = ['applied', 'unchanged', 'superseded', 'already_exists', 'target_deleted', 'rejected'];
+
+export const MUTATION_OUTCOME: Record<MutationOutcome, Tone> = {
+  applied: { label: '반영', bg: NEUTRAL_BG, fg: 'var(--color-ink)', dot: 'var(--color-ink)' },
+  unchanged: { label: '변경 없음', bg: NEUTRAL_BG, fg: 'var(--color-body)', dot: 'var(--color-dot-neutral)' },
+  superseded: { label: '더 나중 변경이 있음', bg: NEUTRAL_BG, fg: 'var(--color-body)', dot: 'var(--color-dot-neutral)' },
+  already_exists: { label: '이미 있음', bg: NEUTRAL_BG, fg: 'var(--color-body)', dot: 'var(--color-dot-neutral)' },
+  target_deleted: { label: '삭제된 대상', bg: 'var(--status-warn-bg)', fg: 'var(--status-warn-fg)', dot: 'var(--status-warn-dot)' },
+  rejected: { label: '거절', ...FAIL },
 };
 
 export function stepTone(status: string | null | undefined): Tone {

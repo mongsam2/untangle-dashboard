@@ -33,7 +33,8 @@ export function ProposalCard({ card }: { card: ProposalCardModel }) {
           <div key={it.n} className={s.item}>
             <span className={`mono ${s.n}`}>{it.n}</span>
             <span className={`${s.itemTitle} ${it.done ? s.done : ''}`}>{it.title}</span>
-            <span className={s.cat}>{it.category}</span>
+            {it.category && <span className={s.cat}>{it.category}</span>}
+            {it.schedule && <span className={s.cat}>{it.schedule}</span>}
             {it.mark && (
               <Badge bg="var(--color-canvas)" fg="var(--color-ink)" ring>
                 {it.mark}

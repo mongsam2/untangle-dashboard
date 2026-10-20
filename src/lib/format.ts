@@ -60,6 +60,16 @@ export function fmtDeadline(iso: string): string {
   return d.getUTCMonth() + 1 + '월 ' + d.getUTCDate() + '일 ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
 }
 
+/**
+ * 예정 시작 날짜(`YYYY-MM-DD`)와 시각(`HH:mm`). 사용자 기기 기준의 벽시계 값이라 시간대가 없다.
+ * 한국 시간으로 바꾸지 않고 적힌 그대로 읽는다. 둘 다 없으면 null.
+ */
+export function fmtWall(date: string | null | undefined, time: string | null | undefined): string | null {
+  const m = date ? /^\d{4}-(\d{2})-(\d{2})$/.exec(date) : null;
+  const day = m ? Number(m[1]) + '월 ' + Number(m[2]) + '일' : (date ?? null);
+  return [day, time].filter(Boolean).join(' ') || null;
+}
+
 /** 0~1 비율을 퍼센트 문자열로. */
 export function fmtPct(ratio: number, digits = 1): string {
   return (ratio * 100).toFixed(digits) + '%';

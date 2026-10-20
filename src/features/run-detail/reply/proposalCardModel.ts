@@ -1,12 +1,15 @@
 import type { ChallengeCategory, Proposal, RunDetailResponse } from '../../../api/types';
-import { fmtDeadline, shortId } from '../../../lib/format';
+import { fmtDeadline, fmtWall, shortId } from '../../../lib/format';
 
 export const CATEGORY_LABEL: Record<ChallengeCategory, string> = { start: '시작', sustain: '지속', finish: '완수' };
 
 export interface ProposalItemModel {
   n: number;
   title: string;
+  /** 시작·지속·완수. 사용자가 직접 만든 과제(origin=user)는 역할이 없어서 빈 문자열이다. */
   category: string;
+  /** 예정 시작·예상 소요 시간·마감. 정해진 것이 없으면 빈 문자열이다. */
+  schedule: string;
   done: boolean;
   mark: string;
 }
@@ -50,7 +53,14 @@ export function proposalCardOf(p: Proposal, titleOf: (id: string) => string | un
     const ref = it.reference;
     const isNew = ref.type === 'new';
     const mark = done ? '완료' : ref.type === 'new' && splitKeys.has(ref.temp_key) ? '분할로 추가' : isNew && p.type === 'adjustment' ? '추가' : '';
-    return { n: i + 1, title: it.title, category: CATEGORY_LABEL[it.category] ?? it.category, done, mark };
+    const schedule = [
+      fmtWall(it.start_date, it.start_time),
+      it.estimated_minutes != null ? it.estimated_minutes + '분' : null,
+      it.deadline ? '기한 ' + fmtDeadline(it.deadline) : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return { n: i + 1, title: it.title, category: it.category ? (CATEGORY_LABEL[it.category] ?? it.category) : '', schedule, done, mark };
   });
   const goal = preview?.goal;
   const meta = [goal?.current_deadline ? '기한 ' + fmtDeadline(goal.current_deadline) : '기한 없음', goal?.completion_criteria ? '완료 기준: ' + goal.completion_criteria : null]

@@ -3,7 +3,7 @@
 탱글 에이전트가 요청 하나를 처리하면서 거친 단계(모델 호출·도구 호출·서버 판단)와 토큰·비용·소요시간을 살펴보는 로컬 전용 도구다. 탱글 서버의 대시보드 조회 API(`/v1/dashboard/*`)를 읽기만 한다.
 
 - **요청 목록**: KPI, 출처·처리 경로·상태 필터, 요청 표
-- **요청 인스펙터**: 단계 타임라인, 토큰 구성, 최종 응답과 제안서 카드, 모델 호출별 토큰 표
+- **요청 인스펙터**: 단계 타임라인, 토큰 구성, 최종 응답(제안서 카드, 실행 결과, 사용자 변경 결과, 노트 상태, 오류)과 서버가 구성한 이전 대화, 모델 호출별 토큰 표
 - **케이스 인스펙터**: 테스트 케이스별 평균 수치와 실행 목록
 - **집계**: 도구 호출 도넛·실패율, 요청당 토큰 밀도 곡선, 처리 경로·상태 비율, 케이스 표
 - **재생**: 이전 대화 → 사용자 입력 → 단계 → 최종 응답을 박자에 맞춰 다시 보여준다
@@ -110,7 +110,28 @@ bun run gen:api   # openapi-typescript http://127.0.0.1:8010/openapi.json -o src
 bun run build && bun run test
 ```
 
+서버를 띄우지 않고도 OpenAPI 문서만 뽑아 타입을 만들 수 있다. DB는 필요 없고, `/v1/dashboard/*` 경로가 문서에 들어가도록 대시보드 토큰만 넣는다. 모델은 호출하지 않는다.
+
+```sh
+# untangle-ai-v2/app/tangle 에서
+uv run python -c "import json; from pydantic import SecretStr; from tangle_ai.config import DashboardSettings; from tangle_ai.main import create_app; print(json.dumps(create_app(DashboardSettings(dashboard_token=SecretStr('d'*40), _env_file=None)).openapi()))" > /tmp/openapi.json
+# 이 저장소에서
+bunx openapi-typescript /tmp/openapi.json -o src/api/schema.d.ts
+```
+
 `src/api/schema.d.ts`는 생성 파일이라 손으로 고치지 않는다. 화면 코드는 `src/api/types.ts`의 짧은 별칭(`RunListItem`, `RunSummaryStats` 등)을 쓴다. 필드가 늘면 mock(`src/api/mock/aggregate.ts`·`fixtures.ts`)도 같은 값을 채우도록 맞춘다. 타입 검사가 빠진 필드를 알려 준다.
+
+## 응답과 이전 대화를 읽는 규칙
+
+최종 응답과 이전 대화는 아래 규칙으로 읽는다. 순수 함수는 `lib/history.ts`와 `features/run-detail/reply/responseModel.ts`에 있고 옆의 `*.test.ts`가 검증한다.
+
+| 대상 | 규칙 |
+|---|---|
+| 응답 종류 | `ChatResponse`도 답변이 실패하면 `error`를 담고(`error: null`도 늘 실려 온다), `ErrorResponse`는 `message`가 없다. 그래서 `error` 키가 아니라 `message` 유무로 가른다(`isErrorResponse`). 확인된 실행 결과가 있는데 답변만 실패하면 `ChatResponse`로 나가고, 말풍선은 `message`(오류 문구와 같다), 아래 실행 결과·사용자 변경·노트 상태는 그대로 보여준다. |
+| `mutation_results` | 사용자 변경의 처리 결과. 상태별 건수(반영 → 거절 순)를 배지로 세고, 거절은 `error`의 코드와 이유를 줄로 보여준다. |
+| `note_states` | 응답이 돌려준 목표의 최신 상태. 목표 제목, 목표 버전(`rev`), 과제 수(삭제 표식이 붙은 과제는 따로)를 보여준다. |
+| 이전 대화 | 요청이 보낸 값이 아니라 서버가 같은 대화의 앞선 30턴으로 다시 만든 값이다. 사용자 발화 앞에 `[YYYY-MM-DD] `가 붙고, 제안 버튼 턴은 `[제안 수락: 제목]`·`[제안 거절: 제목]`으로 적히며, 끝나지 않은 턴은 사용자 발화만 남는다. 인스펙터는 날짜를 따로 떼어 보이고 응답 없이 끝난 턴을 표시한다. 재생 화면의 앱 대화창은 날짜를 구분선으로, 버튼 턴을 누른 버튼 말풍선으로 풀어서 보여준다. |
+| 도구 이름 | `set_goal_reminder`·`clear_goal_reminder`는 `set_schedule`·`set_reminder`로 바뀌었다(도구는 계속 11개). 예전 실행 기록에는 옛 이름이 남아 있어 표기 순서(`lib/kinds.ts`)에 둘 다 둔다. 조회·변경 구분은 기록의 `tool_kind`를 따른다. |
 
 ## 환경 변수
 
@@ -152,7 +173,7 @@ src/
   app/            App·라우트(/runs, /stats)·AppShell(전역 메뉴, 하위 메뉴, 오른쪽 상세 패널)·URL 화면 상태
   styles/         tokens.css(색·반경·글꼴 변수), base.css
   api/            schema.d.ts(생성된 응답 타입), types.ts(생성 타입의 별칭), client.ts(mock/live 분기), queries.ts(TanStack Query 훅), mock/(예시 데이터·핸들러·집계)
-  lib/            format(숫자·시각), kinds(단계·도구 종류와 색), status(상태 표기), cases(케이스 제목), input
+  lib/            format(숫자·시각), kinds(단계·도구 종류와 색), status(상태·사용자 변경 결과 표기), cases(케이스 제목), input, history(서버가 만든 이전 대화 해석)
   components/     Badge, Button, Segmented, Collapsible, Inspector, JsonView 등 공통 UI
   features/
     runs/         요청 목록: KPI 띠, 필터 패널, 요청 표, 필터 파싱

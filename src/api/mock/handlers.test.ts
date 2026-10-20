@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../errors';
+import type { ChatResponse } from '../types';
 import { MOCK_RUNS } from './fixtures';
 import { createMockHandlers, encodeCursor } from './handlers';
 
@@ -45,8 +46,46 @@ describe('예시 데이터', () => {
     expect(t34.run.message_replaced).toBe(true);
     const t21 = MOCK_RUNS.find((d) => d.run.test_case_id === 'T21')!;
     const blocked = t21.steps.find((s) => s.decision === 'mutation_blocked')!;
-    expect(blocked).toMatchObject({ kind: 'server', tool_name: 'clear_goal_reminder', error_code: 'conflict' });
+    expect(blocked).toMatchObject({ kind: 'server', tool_name: 'set_reminder', error_code: 'conflict' });
     expect(t21.run.tool_calls).toBe(2);
+  });
+});
+
+describe('서버 계약을 따르는 예시 데이터', () => {
+  const byCase = (id: string) => MOCK_RUNS.find((d) => d.run.test_case_id === id)!;
+
+  it('알림 도구는 set_schedule·set_reminder 이름과 target_type 인자를 쓴다', () => {
+    const t34 = byCase('T34');
+    const call = t34.steps.find((s) => s.tool_name === 'set_reminder')!;
+    expect(call).toMatchObject({ kind: 'tool', tool_kind: 'mutation', status: 'failed' });
+    expect(call.arguments).toEqual({ target_type: 'goal', target_id: 'g-1', base: 'start', minutes_before: 30 });
+    const blocked = byCase('T21').steps.find((s) => s.decision === 'mutation_blocked')!;
+    expect(blocked.arguments).toEqual({ target_type: 'goal', target_id: 'g-3', base: null, minutes_before: null });
+    // 모델이 다음에 부르려던 도구도 새 이름이다.
+    expect(byCase('T21').steps.filter((s) => s.kind === 'model').map((s) => s.next_action)).toContain('set_reminder');
+    for (const d of MOCK_RUNS) {
+      for (const s of d.steps) {
+        expect(['set_goal_reminder', 'clear_goal_reminder']).not.toContain(s.tool_name);
+        expect(['set_goal_reminder', 'clear_goal_reminder']).not.toContain(s.next_action);
+      }
+    }
+  });
+
+  it('응답에 사용자 변경 결과와 노트 상태가 실린다', () => {
+    const t24 = byCase('T24').response as ChatResponse;
+    expect(t24.mutation_results!.map((m) => m.status)).toEqual(['applied', 'unchanged']);
+    expect(t24.note_states).toMatchObject([{ revision: 7, goal: { id: 'g-3', title: '토익 850점 받기' } }]);
+    // 사용자가 직접 만든 과제는 역할이 없다.
+    expect(t24.note_states![0]!.challenges!.find((c) => c.origin === 'user')).toMatchObject({ category: null, estimated_minutes: 120, start_time: '10:00' });
+  });
+
+  it('이전 대화는 서버가 만든 모양이다: 날짜 접두사, 버튼 턴, 끝나지 않은 턴', () => {
+    for (const d of MOCK_RUNS) {
+      for (const h of d.history.filter((x) => x.role === 'user')) expect(h.text).toMatch(/^\[\d{4}-\d{2}-\d{2}\] /);
+      for (const h of d.history.filter((x) => x.role === 'assistant')) expect(h.text).not.toMatch(/^\[\d{4}-\d{2}-\d{2}\]/);
+    }
+    expect(byCase('T19').history[0]).toEqual({ role: 'user', text: '[2026-10-18] [제안 수락: 포트폴리오 공개]' });
+    expect(byCase('T15').history.at(-1)!.role).toBe('user');
   });
 });
 
@@ -136,8 +175,11 @@ describe('상세·케이스·집계 흉내', () => {
     const search = st.tools.find((t) => t.tool_name === 'search_goals')!;
     // 케이스 7개 × 4회 + 실제 요청 4건 + 오류 요청 2건
     expect(search.calls).toBe(34);
-    const reminder = st.tools.find((t) => t.tool_name === 'set_goal_reminder')!;
+    const reminder = st.tools.find((t) => t.tool_name === 'set_reminder')!;
     expect(reminder).toMatchObject({ calls: 4, failed: 4, unknown: 0 });
+    expect(st.tools.find((t) => t.tool_name === 'set_schedule')).toMatchObject({ calls: 1, failed: 0, unknown: 0, tool_kind: 'mutation' });
+    // 예전 도구 이름은 새 기록에 남지 않는다.
+    expect(st.tools.some((t) => t.tool_name === 'set_goal_reminder' || t.tool_name === 'clear_goal_reminder')).toBe(false);
     expect(st.tools.find((t) => t.tool_name === 'set_completion')).toMatchObject({ calls: 8, unknown: 4 });
     expect(st.statuses.map((s) => s.value)).toEqual(['normal', 'tool_failed', 'outcome_unknown', 'error']);
     expect(st.statuses.reduce((a, s) => a + s.ratio, 0)).toBeCloseTo(1);
