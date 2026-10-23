@@ -1,16 +1,20 @@
-import type { StepKind, ToolKind } from '../api/types';
+import type { GuardrailLayer, ServerDecision, StepKind, ToolKind } from '../api/types';
 
 // 데이터 색은 tokens.css의 변수를 그대로 가리킨다.
 export const KIND: Record<ToolKind, { label: string; color: string; bg: string }> = {
-  query: { label: '조회', color: 'var(--data-query)', bg: 'var(--icon-bg-query)' },
-  mutation: { label: '변경', color: 'var(--data-mutation)', bg: 'var(--icon-bg-mutation)' },
+  query: { label: '조회', color: 'var(--data-query)', bg: 'var(--surface-emphasis)' },
+  proposal: { label: '제안', color: 'var(--data-proposal)', bg: 'var(--surface-warning)' },
+  briefing: { label: '브리핑', color: 'var(--data-briefing)', bg: 'var(--surface-success)' },
 };
+
+export const TOOL_KIND_ORDER: ToolKind[] = ['query', 'proposal', 'briefing'];
 
 export const MODEL_COLOR = 'var(--data-model)';
 export const SERVER_COLOR = 'var(--data-server)';
 export const FAILURE_COLOR = 'var(--data-failure)';
+export const GUARD_COLOR = 'var(--guard-stripe-light)';
 
-// 입력 = 인디고(비용 비중이 커서 채색), 출력 = 그래파이트. 묶음 안에서는 진한 톤과 연한 톤으로만 나눈다.
+// 입력 = 파랑(비용 비중이 커서 채색), 출력 = 그래파이트. 묶음 안에서는 진한 톤과 연한 톤으로만 나눈다.
 export const TOK = {
   fresh: 'var(--tok-input-fresh)',
   cached: 'var(--tok-input-cached)',
@@ -18,14 +22,17 @@ export const TOK = {
   reason: 'var(--tok-output-reasoning)',
 } as const;
 
-export type IconKind = 'model' | ToolKind | 'server' | 'final';
+export type IconKind = 'model' | ToolKind | 'guardrail' | 'server' | 'final' | 'user';
 
 export const ICON_BG: Record<IconKind, string> = {
-  model: 'var(--icon-bg-model)',
-  query: 'var(--icon-bg-query)',
-  mutation: 'var(--icon-bg-mutation)',
-  server: 'var(--color-canvas)',
-  final: 'var(--color-parchment)',
+  model: 'var(--surface-inverse)',
+  query: 'var(--surface-emphasis)',
+  proposal: 'var(--surface-warning)',
+  briefing: 'var(--surface-success)',
+  guardrail: 'var(--guard-bg)',
+  server: 'var(--surface-field)',
+  final: 'var(--surface-success)',
+  user: 'var(--surface-field)',
 };
 
 export function iconKindOf(kind: StepKind, toolKind?: ToolKind | null): IconKind {
@@ -33,35 +40,41 @@ export function iconKindOf(kind: StepKind, toolKind?: ToolKind | null): IconKind
   return kind;
 }
 
-/**
- * 도구 표기 순서. 호출 수가 같을 때의 정렬 기준이다.
- * `set_goal_reminder`·`clear_goal_reminder`는 `set_schedule`·`set_reminder`로 바뀌었지만
- * 예전 실행 기록에는 남아 있어서 뒤에 둔다. 도구 종류(조회·변경)는 기록이 가진 `tool_kind`를 따른다.
- */
-export const TOOL_ORDER = [
-  'search_goals',
-  'get_goal',
-  'get_change_history',
-  'get_proposals',
-  'create_goal',
-  'update_goal_details',
-  'create_proposal',
-  'apply_proposal',
-  'set_completion',
-  'set_schedule',
-  'set_reminder',
-  'set_goal_reminder',
-  'clear_goal_reminder',
+/** 도구 12개. 설계 문서 `agent-tools.md`의 순서다. 호출 수가 같을 때의 정렬 기준으로도 쓴다. */
+export const TOOLS: { name: string; kind: ToolKind; label: string }[] = [
+  { name: 'search_todos', kind: 'query', label: '할 일 조회' },
+  { name: 'search_plans', kind: 'query', label: '계획 조회' },
+  { name: 'get_items', kind: 'query', label: 'ID로 조회' },
+  { name: 'propose_create_todo', kind: 'proposal', label: '할 일 생성 제안' },
+  { name: 'propose_update_todo', kind: 'proposal', label: '할 일 변경 제안' },
+  { name: 'propose_delete_todo', kind: 'proposal', label: '할 일 삭제 제안' },
+  { name: 'propose_move_todo_to_plan', kind: 'proposal', label: '할 일 → 계획 이동 제안' },
+  { name: 'propose_create_plan', kind: 'proposal', label: '계획 생성 제안' },
+  { name: 'propose_update_plan', kind: 'proposal', label: '계획 변경 제안' },
+  { name: 'propose_delete_plan', kind: 'proposal', label: '계획 삭제 제안' },
+  { name: 'propose_move_plan_to_todo', kind: 'proposal', label: '계획 → 할 일 이동 제안' },
+  { name: 'get_today_briefing', kind: 'briefing', label: '오늘 브리핑' },
 ];
+
+export const TOOL_ORDER = TOOLS.map((t) => t.name);
 
 export function toolOrderIndex(name: string): number {
   const i = TOOL_ORDER.indexOf(name);
   return i < 0 ? TOOL_ORDER.length : i;
 }
 
+export function toolKindOf(name: string): ToolKind {
+  return TOOLS.find((t) => t.name === name)?.kind ?? 'query';
+}
+
+export function toolLabel(name: string): string {
+  return TOOLS.find((t) => t.name === name)?.label ?? name;
+}
+
 export const RAMP: Record<ToolKind, string[]> = {
-  query: [1, 2, 3, 4, 5].map((i) => `var(--ramp-query-${i})`),
-  mutation: [1, 2, 3, 4, 5, 6, 7].map((i) => `var(--ramp-mutation-${i})`),
+  query: [1, 2, 3].map((i) => `var(--ramp-query-${i})`),
+  proposal: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => `var(--ramp-proposal-${i})`),
+  briefing: ['var(--ramp-briefing-1)'],
 };
 
 export function rampColor(kind: ToolKind, i: number): string {
@@ -71,5 +84,23 @@ export function rampColor(kind: ToolKind, i: number): string {
 
 export function nextActionLabel(next: string | null | undefined): string {
   if (!next) return '';
-  return next === 'final_answer' ? '→ 최종 답변 작성' : '→ ' + next + ' 호출';
+  return next === 'final_response' ? '→ 최종 응답 작성' : '→ ' + next + ' 호출';
 }
+
+/** 가드레일 층. 설계 문서 `guardrails.md`의 층 번호를 따른다. */
+export const GUARD_LAYER: Record<GuardrailLayer, { label: string; short: string }> = {
+  input: { label: '입력 가드레일', short: '입력' },
+  tool: { label: '도구 가드레일', short: '도구' },
+  output: { label: '출력 가드레일', short: '출력' },
+  limit: { label: '한도', short: '한도' },
+};
+
+export const GUARD_LAYER_ORDER: GuardrailLayer[] = ['input', 'tool', 'output', 'limit'];
+
+export const SERVER_DECISION: Record<ServerDecision, string> = {
+  correction_requested: '보정 요청',
+  cards_assembled: '카드 조립',
+  limit_exceeded: '한도 초과로 중단',
+  output_rejected: '출력 거부',
+  input_blocked: '입력 차단',
+};

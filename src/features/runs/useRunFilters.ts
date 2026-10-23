@@ -1,14 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { RunFilters, RunPath, RunSource, RunStatus } from '../../api/types';
+import type { RunFilters, RunSource, RunStatus } from '../../api/types';
+import { RUN_STATUS_ORDER } from '../../lib/status';
 
 const SOURCES: RunSource[] = ['all', 'test', 'real'];
-const PATHS: RunPath[] = ['model', 'accept_direct', 'reject_direct'];
-const STATUSES: RunStatus[] = ['normal', 'tool_failed', 'outcome_unknown', 'error'];
 
 export interface ParsedFilters {
   source: RunSource;
-  path: RunPath | null;
   status: RunStatus | null;
 }
 
@@ -20,8 +18,7 @@ function pick<T extends string>(value: string | null, allowed: readonly T[]): T 
 export function parseFilters(params: URLSearchParams): ParsedFilters {
   return {
     source: pick(params.get('source'), SOURCES) ?? 'all',
-    path: pick(params.get('path'), PATHS),
-    status: pick(params.get('status'), STATUSES),
+    status: pick(params.get('status'), RUN_STATUS_ORDER),
   };
 }
 
@@ -33,7 +30,7 @@ export function applyFilter(params: URLSearchParams, key: keyof RunFilters, valu
 }
 
 export function activeFilterCount(f: ParsedFilters): number {
-  return Number(f.source !== 'all') + Number(f.path !== null) + Number(f.status !== null);
+  return Number(f.source !== 'all') + Number(f.status !== null);
 }
 
 export function useRunFilters() {

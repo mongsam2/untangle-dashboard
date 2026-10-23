@@ -1,52 +1,28 @@
-.badges {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
-.title {
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1.14;
-}
-
-.meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 20px;
-}
-
-.metaItem {
+.stat {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  padding: 12px 14px;
 }
 
-.metaLabel {
+.statLabel {
   font-size: 12px;
-  letter-spacing: -0.12px;
-  color: var(--color-on-dark-muted);
+  color: var(--text-secondary);
 }
 
-.metaValue {
-  font-size: 14px;
-  color: var(--color-on-dark);
+.statValue {
+  font-size: 20px;
+  font-weight: 700;
 }
 
-.alert {
-  color: var(--color-on-dark-alert);
-}
-
-.input {
-  padding: 20px 24px;
+.statuses {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 8px;
-}
-
-.inputText {
-  font-size: 17px;
-  line-height: 1.47;
-  letter-spacing: -0.374px;
 }

@@ -1,115 +1,218 @@
 .card {
-  width: 100%;
-  max-width: 560px;
-  padding: 20px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--color-hairline);
-  background: var(--color-canvas);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--surface-document);
 }
 
-.top {
+.head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.id {
-  margin-left: auto;
-  max-width: 50%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--color-muted);
+.title {
+  font-size: 15px;
+  font-weight: 700;
 }
 
-.goal {
+.id {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.lines {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.field {
+  color: var(--text-secondary);
+}
+
+.before {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  margin-right: 8px;
+}
+
+.arrow {
+  color: var(--line-connector);
+  margin-right: 8px;
+}
+
+.subs {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  font-size: 13px;
 }
 
-.title {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.374px;
-}
-
-.meta {
-  font-size: 12px;
-  letter-spacing: -0.12px;
-  color: var(--color-muted);
-}
-
-.reason {
-  font-size: 14px;
-  line-height: 1.43;
-  letter-spacing: -0.224px;
-  color: var(--color-body);
-}
-
-.items {
+.sub {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
-.item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--color-parchment);
-}
-
-.n {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+.check {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--line-connector);
+  border-radius: 4px;
   flex: none;
-  background: var(--color-canvas);
-  font-size: 12px;
 }
 
-.itemTitle {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 14px;
-  letter-spacing: -0.224px;
-  color: var(--color-ink);
-}
-
-.done {
-  color: var(--color-muted);
-}
-
-.cat {
-  font-size: 12px;
-  letter-spacing: -0.12px;
-  color: var(--color-muted);
+.checked {
+  background: var(--data-success);
+  border-color: var(--data-success);
 }
 
 .removed {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+.tag {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--surface-emphasis);
+  color: var(--text-emphasis);
+}
+
+.tagRemoved {
+  background: var(--surface-danger);
+  color: var(--text-danger);
+}
+
+.ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.button {
+  flex: 1 1 0;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-8);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--line-hierarchy);
+  color: var(--text-secondary);
+}
+
+.accept {
+  border-color: var(--surface-action);
+  background: var(--surface-action);
+  color: var(--text-inverse);
+}
+
+/* 질문 */
+.question {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--surface-document);
+}
+
+.qText {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
-.removedLine {
-  font-size: 14px;
-  letter-spacing: -0.224px;
-  color: var(--color-muted);
+.option {
+  padding: 4px 10px;
+  border: 1px solid var(--line-hierarchy);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
 }
 
-.strike {
-  text-decoration: line-through;
+.optionItem {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* 브리핑 */
+.briefing {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--surface-document);
+}
+
+.bHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bTitle {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.bCount {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.bSection {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.bItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.bTime {
+  width: 44px;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.bPlay {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-emphasis);
+  color: var(--text-emphasis);
 }

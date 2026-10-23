@@ -8,46 +8,47 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 20px 24px 12px;
 }
 
 .title {
-  font-size: 21px;
-  font-weight: 600;
-  letter-spacing: 0.231px;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .scroll {
   overflow-x: auto;
+  padding: 0 20px 4px;
 }
 
 .table {
-  min-width: 720px;
+  min-width: 760px;
 }
 
 .row {
   display: grid;
-  grid-template-columns: 88px 88px minmax(180px, 1fr) 84px 80px 64px 16px;
+  grid-template-columns: 88px 84px minmax(180px, 1fr) 72px 84px 80px 64px 16px;
   gap: 12px;
   align-items: center;
   width: 100%;
-  padding: 12px 24px;
+  padding: 10px 12px;
   border: 0;
-  border-top: 1px solid var(--color-divider);
-  background: var(--color-canvas);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-document);
   text-align: left;
   cursor: pointer;
   font-size: 14px;
-  letter-spacing: -0.224px;
 }
 
 button.row:hover {
-  background: var(--color-row-hover);
+  background: var(--surface-hover);
 }
 
 .header {
   cursor: default;
-  background: var(--color-row-hover);
+  border-top: 0;
+  border-radius: var(--radius-8);
+  background: var(--surface-emphasis);
 }
 
 .num {
@@ -55,12 +56,12 @@ button.row:hover {
 }
 
 .muted {
-  color: var(--color-muted);
+  color: var(--text-secondary);
 }
 
 .time {
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--text-secondary);
 }
 
 .summary {
@@ -73,7 +74,7 @@ button.row:hover {
 .caseId {
   flex: none;
   font-size: 12px;
-  color: var(--color-muted);
+  color: var(--text-secondary);
 }
 
 .ellipsis {
@@ -82,18 +83,22 @@ button.row:hover {
   white-space: nowrap;
 }
 
+.ask {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 .empty {
   padding: 48px 24px;
   text-align: center;
-  color: var(--color-muted);
-  font-size: 17px;
-  letter-spacing: -0.374px;
-  border-top: 1px solid var(--color-divider);
+  color: var(--text-secondary);
+  font-size: 16px;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .more {
   display: flex;
   justify-content: center;
   padding: 16px 24px 24px;
-  border-top: 1px solid var(--color-divider);
 }

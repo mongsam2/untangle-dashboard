@@ -7,22 +7,20 @@
 html,
 body {
   margin: 0;
-  background: var(--color-parchment);
+  background: var(--surface-field);
 }
 
 body {
   min-height: 100vh;
   font-family: var(--font-sans);
-  color: var(--color-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
 }
 
 a {
-  color: var(--color-action);
-}
-
-a:hover {
-  color: var(--color-focus);
+  color: var(--text-emphasis);
 }
 
 button {
@@ -31,32 +29,34 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-focus);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
 
 h1,
-h2 {
+h2,
+h3,
+p {
   margin: 0;
 }
 
 .mono {
   font-family: var(--font-mono);
   letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 표 머리글과 작은 제목 */
 .th {
   font-size: 12px;
-  font-weight: 600;
-  color: var(--color-muted);
-  letter-spacing: -0.12px;
+  font-weight: 500;
+  color: var(--text-emphasis);
 }
 
 .card {
-  background: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-card);
+  background: var(--surface-document);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
 }
 
 .dot {
@@ -70,12 +70,18 @@ h2 {
 pre {
   margin: 0;
   padding: 12px 16px;
-  background: var(--color-parchment);
-  border-radius: var(--radius-sm);
+  background: var(--surface-field);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.6;
   overflow-x: auto;
   white-space: pre;
-  color: var(--color-ink);
+  color: var(--text-primary);
+}
+
+/* 가드레일 차단봉 무늬. 구조도와 단계 카드가 같이 쓴다 */
+.stripes {
+  background: repeating-linear-gradient(135deg, var(--guard-stripe-dark) 0 6px, var(--guard-stripe-light) 6px 12px);
 }

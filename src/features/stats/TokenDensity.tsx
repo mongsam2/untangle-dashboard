@@ -1,39 +1,46 @@
-import { KDE_H, KDE_W, type KdeModel } from './kde';
-import s from './TokenDensity.module.css';
+import { fmtInt } from '../../lib/format';
+import s from './Charts.module.css';
+import { areaPath, type Kde } from './kde';
 
-// 요청당 토큰 밀도 곡선, 중앙값 점선, 아래쪽 러그와 눈금.
-export function TokenDensity({ kde }: { kde: KdeModel }) {
+const W = 960;
+const H = 160;
+
+export function TokenDensity({ kde }: { kde: Kde | null }) {
+  if (!kde) return <span className={s.statsRow}>모델을 부른 요청이 없어 분포를 그릴 수 없어요.</span>;
+  const xMax = kde.xs[kde.xs.length - 1] || 1;
+  const meanX = (kde.mean / xMax) * W;
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((r) => fmtInt(xMax * r));
   return (
-    <>
-      <div className={s.stats}>
+    <div className={s.density}>
+      <div className={s.statsRow}>
         <span>
-          중앙값 <span className="mono">{kde.median}</span>
+          평균 <strong className="mono">{fmtInt(kde.mean)}</strong>
         </span>
         <span>
-          평균 <span className="mono">{kde.mean}</span>
+          중앙값 <strong className="mono">{fmtInt(kde.median)}</strong>
         </span>
         <span>
-          최대 <span className="mono">{kde.max}</span>
+          최대 <strong className="mono">{fmtInt(kde.max)}</strong>
+        </span>
+        <span>
+          표준편차 <strong className="mono">{fmtInt(kde.sd)}</strong>
+        </span>
+        <span>
+          표본 <strong className="mono">{kde.n}</strong>
         </span>
       </div>
-      <div className={s.plot}>
-        <svg role="img" aria-label={kde.aria} viewBox={`0 0 ${KDE_W} ${KDE_H}`} preserveAspectRatio="none" className={s.svg}>
-          <path d={kde.area} style={{ fill: 'var(--data-query)', fillOpacity: 0.14 }} />
-          <path d={kde.medianLine} fill="none" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" style={{ stroke: 'var(--color-muted)' }} />
-          <path d={kde.line} fill="none" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" style={{ stroke: 'var(--data-query)' }} />
-          <path d={`M0,${KDE_H - 0.5} L${KDE_W},${KDE_H - 0.5}`} fill="none" strokeWidth="1" vectorEffect="non-scaling-stroke" style={{ stroke: 'var(--color-axis)' }} />
-        </svg>
-        {kde.rug.map((r, i) => (
-          <span key={i} className={s.rug} title={r.title} style={{ left: r.x + '%' }} />
+      <svg className={s.svg} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="요청당 토큰 분포 곡선">
+        <path d={areaPath(kde, W, H)} fill="var(--data-query)" fillOpacity="0.9" />
+        <line x1={meanX} x2={meanX} y1="0" y2={H} stroke="var(--text-primary)" strokeDasharray="4 4" />
+        <text x={meanX + 6} y="14" fontSize="11" fill="var(--text-primary)" fontFamily="var(--font-mono)">
+          평균 {fmtInt(kde.mean)}
+        </text>
+      </svg>
+      <div className={`mono ${s.axis}`}>
+        {ticks.map((t, i) => (
+          <span key={i}>{t}{i === ticks.length - 1 ? ' 토큰' : ''}</span>
         ))}
       </div>
-      <div className={s.ticks}>
-        {kde.ticks.map((t) => (
-          <span key={t.x} className={`mono ${s.tick}`} style={{ left: t.x + '%', transform: `translateX(${t.shift})` }}>
-            {t.label}
-          </span>
-        ))}
-      </div>
-    </>
+    </div>
   );
 }

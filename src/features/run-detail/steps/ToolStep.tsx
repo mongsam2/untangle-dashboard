@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Badge } from '../../../components/Badge';
 import { Button } from '../../../components/Button';
 import { JsonView } from '../../../components/JsonView';
-import { KIND } from '../../../lib/kinds';
-import { stepTone } from '../../../lib/status';
+import { KIND, toolLabel } from '../../../lib/kinds';
+import { toolTone } from '../../../lib/status';
 import { errorMessageOf } from '../displaySteps';
 import type { StepProps } from './ModelStep';
 import { StepCard } from './StepCard';
@@ -13,17 +13,20 @@ export function ToolStep({ step, selected, onSelect }: StepProps) {
   const [argsOpen, setArgsOpen] = useState(false);
   const [resOpen, setResOpen] = useState(false);
   const kind = KIND[step.tool_kind ?? 'query'];
-  const tone = stepTone(step.status);
+  const tone = toolTone(step.status);
+  const name = step.tool_name ?? '-';
   return (
     <StepCard
       step={step}
-      title={step.tool_name ?? '-'}
+      title={name}
       mono
       selected={selected}
       onSelect={onSelect}
       tags={
         <>
-          <span className={s.kindLabel}>{kind.label} 도구</span>
+          <span className={s.kindLabel}>
+            {kind.label} 도구 · {toolLabel(name)}
+          </span>
           <Badge bg={tone.bg} fg={tone.fg} dot={tone.dot}>
             {tone.label}
           </Badge>
@@ -37,10 +40,10 @@ export function ToolStep({ step, selected, onSelect }: StepProps) {
         </div>
       )}
       <div className={s.pills}>
-        <Button variant="pill" aria-expanded={argsOpen} onClick={() => setArgsOpen((v) => !v)}>
+        <Button variant="soft" aria-expanded={argsOpen} onClick={() => setArgsOpen((v) => !v)}>
           {argsOpen ? '인자 접기' : '인자 보기'}
         </Button>
-        <Button variant="pill" aria-expanded={resOpen} onClick={() => setResOpen((v) => !v)}>
+        <Button variant="soft" aria-expanded={resOpen} onClick={() => setResOpen((v) => !v)}>
           {resOpen ? '결과 접기' : '결과 보기'}
         </Button>
       </div>

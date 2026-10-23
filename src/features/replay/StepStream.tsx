@@ -1,50 +1,37 @@
-import { Badge } from '../../components/Badge';
-import { StepIcon } from '../../components/StepIcon';
-import a from './anim.module.css';
-import type { ReplayCard } from './replayModel';
-import s from './StepStream.module.css';
-import { TypingDots } from './TypingDots';
+import { useEffect, useRef, type ReactNode } from 'react';
+import type { DisplayStep } from '../run-detail/displaySteps';
+import { StepView } from '../run-detail/steps/StepView';
+import s from './Replay.module.css';
 
-// 오른쪽 단계 흐름. 지금 박자의 카드만 강조하고 지난 카드는 흐리게 둔다.
-export function StepStream({ cards }: { cards: ReplayCard[] }) {
+interface StepStreamProps {
+  groups: { key: string; label?: string; steps: DisplayStep[] }[];
+  /** 아직 아무 단계도 드러나지 않았을 때 보이는 안내. */
+  empty: ReactNode;
+}
+
+// 재생되며 쌓이는 단계 카드. 상세 패널과 같은 카드를 쓰되 선택 기능은 없다.
+export function StepStream({ groups, empty }: StepStreamProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const count = groups.reduce((n, g) => n + g.steps.length, 0);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [count]);
   return (
-    <div className={s.scroll}>
-      <div className={s.list}>
-        {cards.map((c) => (
-          <div key={c.key} className={a.in}>
-            <div className={`card ${s.card} ${c.current ? s.current : s.past} ${c.kind === 'server' ? s.server : ''}`}>
-              <div className={s.head}>
-                <StepIcon kind={c.kind} />
-                <span className={`${c.mono ? 'mono' : ''} ${s.title}`}>{c.title}</span>
-                {c.badge && (
-                  <Badge className={a.pop} bg={c.badge.bg} fg={c.badge.fg} dot={c.badge.dot}>
-                    {c.badge.label}
-                  </Badge>
-                )}
-                {c.anim && (
-                  <span className={s.right}>
-                    <TypingDots />
-                  </span>
-                )}
-                {c.stamp && <span className={`mono ${a.pop} ${s.right} ${s.stamp}`}>{c.stamp}</span>}
+    <div ref={ref} className={s.stream} aria-label="단계 흐름" aria-live="polite">
+      {count === 0 && <span className={s.streamEmpty}>{empty}</span>}
+      {groups.map((g) =>
+        g.steps.length === 0 ? null : (
+          <div key={g.key} style={{ display: 'contents' }}>
+            {g.label && <div className={s.turnDivider}>{g.label}</div>}
+            {g.steps.map((step) => (
+              <div key={step.seq} className={s.stepEnter}>
+                <StepView step={step} selected={false} onSelect={() => undefined} />
               </div>
-              {c.text !== undefined && <div className={`${c.anim ? a.reveal : ''} ${c.textSmall ? s.textSmall : s.text}`}>{c.text}</div>}
-              {c.args !== undefined && <div className={`mono ${s.args}`}>{c.args}</div>}
-              {c.bar && (
-                <div className={s.track}>
-                  <div className={a.bar} style={{ background: c.bar }} />
-                </div>
-              )}
-              {c.error && (
-                <div className={`${a.pop} ${s.error}`}>
-                  <span className={`mono ${s.errorCode}`}>{c.error.code}</span> {c.error.message}
-                </div>
-              )}
-              {c.next && <div className={`${a.pop} ${s.next}`}>{c.next}</div>}
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        ),
+      )}
     </div>
   );
 }

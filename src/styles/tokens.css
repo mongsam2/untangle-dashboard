@@ -1,97 +1,114 @@
-/* 디자인 토큰. 색·반경·글꼴은 모두 여기서만 정의한다. */
+/* 디자인 토큰. 피그마 "Dashboard v2 · Design System"(JIBiLsJeyDYJPU4ouy57GB, 349:8282)의 변수를 그대로 옮겼다.
+   색·반경·글꼴은 모두 여기서만 정의하고 컴포넌트 CSS는 변수만 쓴다. */
 :root {
-  /* 바탕과 글자 */
-  --color-action: #0066cc;
-  --color-focus: #0071e3;
-  --color-link-on-dark: #2997ff;
-  --color-ink: #1d1d1f;
-  --color-body: #333333;
-  --color-muted: #6e6e73;
-  --color-faint: #aeaeb2;
-  --color-dot-neutral: #8e8e93;
-  --color-marker-past: #c7c7cc;
-  --color-parchment: #f5f5f7;
-  --color-canvas: #ffffff;
-  --color-hairline: #e0e0e0;
-  --color-divider: #f0f0f0;
-  --color-row-hover: #fafafc;
-  --color-swatch-ring: #d2d2d7;
-  --color-axis: #c9c9c3;
-  --color-bubble: #e9e9ed;
-  --color-nav: #000000;
-  --color-hero: #272729;
-  --color-on-dark: #ffffff;
-  --color-on-dark-muted: #cccccc;
-  --color-on-dark-alert: #ff8a80;
-  --color-subnav: rgba(245, 245, 247, 0.8);
-  --color-subnav-border: rgba(0, 0, 0, 0.08);
-  --color-close-bg: rgba(210, 210, 215, 0.64);
+  /* 글자 */
+  --text-primary: #17212f;
+  --text-secondary: #526174;
+  --text-emphasis: #2558c8;
+  --text-success: #08734c;
+  --text-warning: #a85908;
+  --text-danger: #b3261e;
+  --text-inverse: #ffffff;
 
-  /* 데이터 색 */
-  --data-model: #a547c9;
-  --data-query: #2a78d6;
-  --data-mutation: #c95316;
-  --data-server: #6e6e73;
-  --data-failure: #c42b2b;
-  --failure-text: #b42323;
-  --failure-bg: #fcecec;
-  --failure-fg: #8f1a1a;
+  /* 바탕 */
+  --surface-document: #ffffff;
+  --surface-field: #f8fafc;
+  --surface-emphasis: #e3edff;
+  --surface-success: #ddf9eb;
+  --surface-warning: #fff0cc;
+  --surface-danger: #fce8e6;
+  --surface-hover: #f1f5f9;
+  --surface-inverse: #17212f;
+  --surface-action: #2558c8;
 
-  --icon-bg-model: #f5ecfa;
-  --icon-bg-query: #eaf2fc;
-  --icon-bg-mutation: #fdefe7;
+  /* 선 */
+  --border-subtle: #e2e8f0;
+  --border-focus: #2558c8;
+  --line-hierarchy: #cbd5e1;
+  --line-connector: #94a3b8;
 
-  /* 토큰 색: 입력 = 인디고, 출력 = 그래파이트 */
-  --tok-input-fresh: #5e5ce6;
-  --tok-input-cached: #c3c2f7;
-  --tok-output-answer: #48484a;
-  --tok-output-reasoning: #aeaeb2;
+  /* 아이콘 */
+  --icon-primary: #17212f;
+  --icon-secondary: #526174;
+  --icon-inverse: #ffffff;
 
-  --path-accept: #48484a;
-  --path-reject: #aeaeb2;
+  /* 데이터 색: 단계 종류와 도구 종류 */
+  --data-model: #17212f;
+  --data-query: #2558c8;
+  --data-proposal: #a85908;
+  --data-briefing: #08734c;
+  --data-server: #94a3b8;
+  --data-failure: #b3261e;
+  --data-success: #08734c;
+  --data-track: #e2e8f0;
 
-  --ramp-query-1: #1d5fae;
-  --ramp-query-2: #2a78d6;
-  --ramp-query-3: #5b94dc;
-  --ramp-query-4: #8db6ea;
-  --ramp-query-5: #bcd5f4;
-  --ramp-mutation-1: #7a3209;
-  --ramp-mutation-2: #a8460f;
-  --ramp-mutation-3: #c95316;
-  --ramp-mutation-4: #e0753a;
-  --ramp-mutation-5: #ef9a68;
-  --ramp-mutation-6: #f6bf9a;
-  --ramp-mutation-7: #fbdcc6;
+  /* 가드레일: 구조도의 차단봉과 같은 줄무늬 */
+  --guard-stripe-dark: #17212f;
+  --guard-stripe-light: #f2c94c;
+  --guard-bg: #fff8dd;
+  --guard-fg: #6b4e00;
 
-  /* 요청 상태 */
-  --status-ok-bg: #e8f5ed;
-  --status-ok-fg: #14633a;
-  --status-ok-dot: #1a7f45;
-  --status-warn-bg: #fdf4e1;
-  --status-warn-fg: #6e4708;
-  --status-warn-dot: #b7791f;
-  --status-unknown-bg: #fcecec;
-  --status-unknown-fg: #8f1a1a;
-  --status-unknown-dot: #c42b2b;
-  --status-error-bg: #ececee;
-  --status-error-fg: #1d1d1f;
-  --status-error-dot: #6e6e73;
+  /* 토큰 색: 입력 = 파랑, 출력 = 그래파이트 */
+  --tok-input-fresh: #2558c8;
+  --tok-input-cached: #a9c4f5;
+  --tok-output-answer: #17212f;
+  --tok-output-reasoning: #94a3b8;
 
-  --row-tint-warn: #fdf5e4;
-  --row-tint-unknown: #fdeeee;
-  --row-tint-error: #f0f0f2;
+  /* 도구 램프(호출 많은 순) */
+  --ramp-query-1: #1e4aa8;
+  --ramp-query-2: #2558c8;
+  --ramp-query-3: #6c8fdc;
+  --ramp-proposal-1: #6f3a05;
+  --ramp-proposal-2: #8a4a06;
+  --ramp-proposal-3: #a85908;
+  --ramp-proposal-4: #c4711a;
+  --ramp-proposal-5: #d98a3a;
+  --ramp-proposal-6: #e8a660;
+  --ramp-proposal-7: #f0c08a;
+  --ramp-proposal-8: #f6d7b3;
+  --ramp-briefing-1: #08734c;
+
+  /* 실행 상태 6종 */
+  --status-normal-bg: #ddf9eb;
+  --status-normal-fg: #08734c;
+  --status-normal-dot: #08734c;
+  --status-tool-failed-bg: #fff0cc;
+  --status-tool-failed-fg: #a85908;
+  --status-tool-failed-dot: #a85908;
+  --status-blocked-input-bg: #e3edff;
+  --status-blocked-input-fg: #2558c8;
+  --status-blocked-input-dot: #2558c8;
+  --status-limit-exceeded-bg: #e2e8f0;
+  --status-limit-exceeded-fg: #334155;
+  --status-limit-exceeded-dot: #64748b;
+  --status-output-rejected-bg: #fce8e6;
+  --status-output-rejected-fg: #b3261e;
+  --status-output-rejected-dot: #b3261e;
+  --status-error-bg: #17212f;
+  --status-error-fg: #ffffff;
+  --status-error-dot: #ffffff;
+
+  /* 표 행 바탕. 정상은 칠하지 않는다 */
+  --row-tint-tool-failed: #fff7e0;
+  --row-tint-blocked-input: #edf3ff;
+  --row-tint-limit-exceeded: #eef2f6;
+  --row-tint-output-rejected: #fdeeec;
+  --row-tint-error: #e9ecf1;
 
   /* 반경 */
-  --radius-card: 18px;
+  --radius-8: 8px;
+  --radius-12: 12px;
   --radius-pill: 9999px;
-  --radius-sm: 8px;
-  --radius-bubble: 18px;
-  --radius-phone: 36px;
+  --radius-bubble: 16px;
+  --radius-phone: 28px;
 
   /* 글꼴 */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, sans-serif;
-  --font-mono: 'SF Mono', ui-monospace, Menlo, 'JetBrains Mono', monospace;
+  --font-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
+  /* 치수 */
+  --nav-height: 56px;
   --inspector-width: 640px;
   --content-max: 1440px;
+  --page-gutter: 24px;
 }

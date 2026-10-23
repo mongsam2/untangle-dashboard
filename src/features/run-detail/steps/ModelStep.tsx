@@ -4,7 +4,7 @@ import { summaryText, tokensOf, type DisplayStep } from '../displaySteps';
 import { StepCard } from './StepCard';
 import s from './StepCard.module.css';
 
-interface StepProps {
+export interface StepProps {
   step: DisplayStep;
   selected: boolean;
   onSelect: () => void;
@@ -46,5 +46,3 @@ export function ModelStep({ step, selected, onSelect }: StepProps) {
 function hasTranslation(step: DisplayStep): boolean {
   return !!step.reasoning_summary_ko && step.reasoning_summary_ko !== step.reasoning_summary;
 }
-
-export type { StepProps };

@@ -1,7 +1,0 @@
-.table {
-  min-width: 820px;
-}
-
-.row {
-  grid-template-columns: 88px 72px minmax(200px, 1fr) 40px 56px 84px 80px 64px 16px;
-}
