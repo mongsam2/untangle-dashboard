@@ -1,6 +1,5 @@
 import type { Proposal, Question, TodayBriefingCard } from '../../../api/types';
 import { Badge } from '../../../components/Badge';
-import { PlayIcon } from '../../../components/icons';
 import { fmtMinutes, shortId } from '../../../lib/format';
 import { KIND } from '../../../lib/kinds';
 import { proposalView } from '../../../lib/proposal';
@@ -100,7 +99,7 @@ export function QuestionList({ questions }: { questions: Question[] }) {
   );
 }
 
-/** D12 오늘 브리핑. 수락·거절이 없고 ▶는 타이머 시트를 연다. */
+/** D12 오늘 브리핑. 버튼 없이 보기만 하는 카드다. */
 export function BriefingCard({ card }: { card: TodayBriefingCard }) {
   return (
     <div className={s.briefing}>
@@ -118,9 +117,6 @@ export function BriefingCard({ card }: { card: TodayBriefingCard }) {
         <div key={p.id ?? i} className={s.bItem}>
           <span className={`mono ${s.bTime}`}>{p.time ?? '미정'}</span>
           <span>{p.title}</span>
-          <span className={s.bPlay} aria-label="타이머 시트 열기">
-            <PlayIcon size={10} />
-          </span>
         </div>
       ))}
       {card.todos.length > 0 && <span className={s.bSection}>미완료 할 일</span>}
@@ -128,9 +124,6 @@ export function BriefingCard({ card }: { card: TodayBriefingCard }) {
         <div key={t.id ?? i} className={s.bItem}>
           <span className={`mono ${s.bTime}`}>{t.estimated_minutes == null ? '' : fmtMinutes(t.estimated_minutes)}</span>
           <span>{t.title}</span>
-          <span className={s.bPlay} aria-label="타이머 시트 열기">
-            <PlayIcon size={10} />
-          </span>
         </div>
       ))}
     </div>

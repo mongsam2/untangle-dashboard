@@ -204,15 +204,3 @@
   flex: none;
   color: var(--text-secondary);
 }
-
-.bPlay {
-  margin-left: auto;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface-emphasis);
-  color: var(--text-emphasis);
-}
