@@ -1,234 +1,139 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../errors';
-import type { ChatResponse } from '../types';
-import { MOCK_RUNS, REAL_CONVERSATION_ID } from './fixtures';
+import type { RunStatus } from '../types';
+import { CASE_IDS, MOCK_RUNS } from './fixtures';
 import { createMockHandlers, encodeCursor } from './handlers';
 
 const h = createMockHandlers();
 
 describe('예시 데이터', () => {
-  it('케이스 44건 + 실제 요청 4건 + 응답 오류 2건', () => {
-    expect(MOCK_RUNS).toHaveLength(50);
-    expect(MOCK_RUNS.filter((d) => d.run.test_case_id)).toHaveLength(44);
-    expect(MOCK_RUNS.filter((d) => d.run.status === 'error')).toHaveLength(2);
-    expect(new Set(MOCK_RUNS.map((d) => d.run.request_id)).size).toBe(50);
+  it('케이스 18개 × 3회와 실제 요청 7건이 있다', () => {
+    expect(CASE_IDS).toHaveLength(18);
+    expect(MOCK_RUNS.filter((d) => d.run.test_case_id !== null)).toHaveLength(54);
+    expect(MOCK_RUNS.filter((d) => d.run.test_case_id === null)).toHaveLength(7);
   });
 
-  it('합계는 모델 단계에서 계산한 값과 같다', () => {
+  it('상태 6종이 모두 등장한다', () => {
+    const statuses = new Set(MOCK_RUNS.map((d) => d.run.status));
+    for (const s of ['normal', 'tool_failed', 'blocked_input', 'limit_exceeded', 'output_rejected', 'error'] as RunStatus[]) expect(statuses.has(s)).toBe(true);
+  });
+
+  it('단계 번호는 1부터 이어지고 입력 차단 실행은 모델을 부르지 않는다', () => {
     for (const d of MOCK_RUNS) {
-      const models = d.steps.filter((s) => s.kind === 'model');
-      expect(d.run.model_calls).toBe(models.length);
-      expect(d.run.input_tokens).toBe(models.reduce((a, s) => a + (s.input_tokens ?? 0), 0));
-      expect(d.run.cached_tokens).toBeLessThanOrEqual(d.run.input_tokens);
-      expect(d.run.reasoning_tokens).toBeLessThanOrEqual(d.run.output_tokens);
-      expect(d.run.path === 'model' || d.run.model_calls === 0).toBe(true);
-      expect(d.run.path === 'model' || d.run.model === null).toBe(true);
       d.steps.forEach((s, i) => expect(s.seq).toBe(i + 1));
-    }
-  });
-
-  it('프로토타입 첫 실행(T10 1회차)의 수치를 그대로 옮긴다', () => {
-    const t10 = MOCK_RUNS.find((d) => d.run.test_case_id === 'T10')!;
-    expect(t10.run.started_at).toBe('2026-10-19T08:52:13.000Z');
-    expect(t10.run.input_tokens).toBe(33800);
-    expect(t10.run.cached_tokens).toBe(29300);
-    expect(t10.run.duration_ms).toBe(1900 + 40 + 1600 + 55 + 4300 + 120 + 1700 + 110);
-  });
-
-  it('입력 앞부분: 버튼 입력은 고정 문구', () => {
-    const t20 = MOCK_RUNS.find((d) => d.run.test_case_id === 'T20')!;
-    expect(t20.run.input_preview).toBe('제안 수락');
-    expect(MOCK_RUNS.find((d) => d.run.test_case_id === 'T18')!.run.input_preview).toBe('제안 거절');
-  });
-
-  it('도구 실패로 답변을 대체한 요청은 message_replaced', () => {
-    const t34 = MOCK_RUNS.find((d) => d.run.test_case_id === 'T34')!;
-    expect(t34.run.message_replaced).toBe(true);
-    const t21 = MOCK_RUNS.find((d) => d.run.test_case_id === 'T21')!;
-    const blocked = t21.steps.find((s) => s.decision === 'mutation_blocked')!;
-    expect(blocked).toMatchObject({ kind: 'server', tool_name: 'set_reminder', error_code: 'conflict' });
-    expect(t21.run.tool_calls).toBe(2);
-  });
-});
-
-describe('서버 계약을 따르는 예시 데이터', () => {
-  const byCase = (id: string) => MOCK_RUNS.find((d) => d.run.test_case_id === id)!;
-
-  it('알림 도구는 set_schedule·set_reminder 이름과 target_type 인자를 쓴다', () => {
-    const t34 = byCase('T34');
-    const call = t34.steps.find((s) => s.tool_name === 'set_reminder')!;
-    expect(call).toMatchObject({ kind: 'tool', tool_kind: 'mutation', status: 'failed' });
-    expect(call.arguments).toEqual({ target_type: 'goal', target_id: 'g-1', base: 'start', minutes_before: 30 });
-    const blocked = byCase('T21').steps.find((s) => s.decision === 'mutation_blocked')!;
-    expect(blocked.arguments).toEqual({ target_type: 'goal', target_id: 'g-3', base: null, minutes_before: null });
-    // 모델이 다음에 부르려던 도구도 새 이름이다.
-    expect(byCase('T21').steps.filter((s) => s.kind === 'model').map((s) => s.next_action)).toContain('set_reminder');
-    for (const d of MOCK_RUNS) {
-      for (const s of d.steps) {
-        expect(['set_goal_reminder', 'clear_goal_reminder']).not.toContain(s.tool_name);
-        expect(['set_goal_reminder', 'clear_goal_reminder']).not.toContain(s.next_action);
+      if (d.run.status === 'blocked_input') {
+        expect(d.run.model_calls).toBe(0);
+        expect(d.steps.some((s) => s.kind === 'guardrail' && s.passed === false)).toBe(true);
       }
     }
   });
 
-  it('응답에 사용자 변경 결과와 노트 상태가 실린다', () => {
-    const t24 = byCase('T24').response as ChatResponse;
-    expect(t24.mutation_results!.map((m) => m.status)).toEqual(['applied', 'unchanged']);
-    expect(t24.note_states).toMatchObject([{ revision: 7, goal: { id: 'g-3', title: '토익 850점 받기' } }]);
-    // 사용자가 직접 만든 과제는 역할이 없다.
-    expect(t24.note_states![0]!.challenges!.find((c) => c.origin === 'user')).toMatchObject({ category: null, estimated_minutes: 120, start_time: '10:00' });
-  });
-
-  it('이전 대화는 서버가 만든 모양이다: 날짜 접두사, 버튼 턴, 끝나지 않은 턴', () => {
+  it('목록 항목의 집계는 단계와 맞는다', () => {
     for (const d of MOCK_RUNS) {
-      for (const h of d.history.filter((x) => x.role === 'user')) expect(h.text).toMatch(/^\[\d{4}-\d{2}-\d{2}\] /);
-      for (const h of d.history.filter((x) => x.role === 'assistant')) expect(h.text).not.toMatch(/^\[\d{4}-\d{2}-\d{2}\]/);
+      const models = d.steps.filter((s) => s.kind === 'model');
+      expect(d.run.model_calls).toBe(models.length);
+      expect(d.run.tool_calls).toBe(d.steps.filter((s) => s.kind === 'tool').length);
+      expect(d.run.input_tokens).toBe(models.reduce((a, s) => a + (s.input_tokens ?? 0), 0));
+      expect(d.run.corrections).toBe(d.steps.filter((s) => s.decision === 'correction_requested').length);
+      if (d.response && 'response_id' in d.response) {
+        expect(d.run.ask_type).toBe(d.response.ask?.type ?? null);
+        expect(d.run.proposal_count).toBe(d.response.ask?.proposals?.length ?? 0);
+      }
     }
-    expect(byCase('T19').history[0]).toEqual({ role: 'user', text: '[2026-10-18] [제안 수락: 포트폴리오 공개]' });
-    expect(byCase('T15').history.at(-1)!.role).toBe('user');
+  });
+
+  it('제안 카드는 한 응답에 최대 4개다', () => {
+    for (const d of MOCK_RUNS) expect(d.run.proposal_count).toBeLessThanOrEqual(4);
+    expect(MOCK_RUNS.some((d) => d.run.proposal_count === 4)).toBe(true);
   });
 });
 
-describe('목록 API 흉내', () => {
-  it('최신순, 필터, 요약', () => {
-    const all = h.listRuns({ limit: 100 });
-    expect(all.items).toHaveLength(50);
-    expect(all.next_cursor).toBeNull();
-    const times = all.items.map((r) => r.started_at);
-    expect([...times].sort().reverse()).toEqual(times);
-    expect(all.summary).toMatchObject({ runs: 50, test_runs: 44, real_runs: 6 });
-
-    const real = h.listRuns({ source: 'real', limit: 100 });
-    expect(real.items.every((r) => r.test_case_id === null)).toBe(true);
-    expect(real.summary.runs).toBe(6);
-
-    const unk = h.listRuns({ status: 'outcome_unknown' });
-    expect(unk.summary.runs).toBe(4);
-    expect(unk.summary.attention_runs).toBe(4);
-
-    expect(h.listRuns({ path: 'accept_direct' }).summary.runs).toBe(4);
+describe('listRuns', () => {
+  it('최신순으로 돌려주고 summary는 필터 전체 기준이다', () => {
+    const page = h.listRuns({ limit: 10 });
+    expect(page.items).toHaveLength(10);
+    expect(page.summary.runs).toBe(MOCK_RUNS.length);
+    for (let i = 1; i < page.items.length; i += 1) expect(page.items[i - 1]!.started_at >= page.items[i]!.started_at).toBe(true);
   });
 
-  it('커서 페이지는 겹치지 않고 끝까지 이어진다', () => {
-    const seen: string[] = [];
+  it('커서로 이어서 받으면 전체를 빠짐없이 한 번씩 본다', () => {
+    const seen = new Set<string>();
     let cursor: string | null = null;
-    let pages = 0;
     do {
-      const page = h.listRuns({ source: 'test', limit: 20, cursor });
-      seen.push(...page.items.map((r) => r.request_id));
-      cursor = page.next_cursor ?? null;
-      pages++;
+      const page: ReturnType<typeof h.listRuns> = h.listRuns({ limit: 7, cursor });
+      for (const r of page.items) seen.add(r.turn_id);
+      cursor = page.next_cursor;
     } while (cursor);
-    expect(pages).toBe(3);
-    expect(new Set(seen).size).toBe(44);
+    expect(seen.size).toBe(MOCK_RUNS.length);
   });
 
-  it('조건이 바뀐 커서는 거절한다', () => {
-    const cursor = encodeCursor(20, { source: 'test' });
+  it('필터가 다른 커서와 범위를 벗어난 limit은 422다', () => {
+    const cursor = encodeCursor(7, { source: 'test' });
     expect(() => h.listRuns({ source: 'real', cursor })).toThrow(ApiError);
-    expect(() => h.listRuns({ cursor: 'not-base64!' })).toThrowError(expect.objectContaining({ status: 422, code: 'invalid_request' }));
+    expect(() => h.listRuns({ limit: 101 })).toThrow(ApiError);
+    expect(() => h.listRuns({ limit: 0 })).toThrow(ApiError);
   });
 
-  it('범위를 벗어난 limit은 서버처럼 거절한다', () => {
-    expect(() => h.listRuns({ limit: 101 })).toThrowError(expect.objectContaining({ status: 422 }));
-    expect(() => h.listRuns({ limit: 0 })).toThrowError(expect.objectContaining({ status: 422 }));
-  });
-
-  it('요약 합계는 목록 전체를 더한 값과 같다', () => {
-    const { summary, items } = h.listRuns({ limit: 100 });
-    const total = (f: (r: (typeof items)[number]) => number) => items.reduce((a, r) => a + f(r), 0);
-    expect(summary.total_input_tokens).toBe(total((r) => r.input_tokens));
-    expect(summary.total_cached_tokens).toBe(total((r) => r.cached_tokens));
-    expect(summary.total_model_calls).toBe(total((r) => r.model_calls));
-    expect(summary.total_tokens).toBe(total((r) => r.input_tokens + r.output_tokens));
-    expect(summary.max_duration_ms).toBe(Math.max(...items.map((r) => r.duration_ms)));
-    expect(summary.model_runs + 8).toBe(summary.runs);
-    expect(summary.tool_failed_runs + summary.outcome_unknown_runs + summary.error_runs).toBe(summary.attention_runs);
-    const costs = items.flatMap((r) => (r.cost_usd === null ? [] : [r.cost_usd]));
-    // 서버의 avg(cost_usd)처럼 비용이 없는 요청은 평균에서 뺀다.
-    expect(summary.avg_cost_usd).toBeCloseTo(costs.reduce((a, c) => a + c, 0) / costs.length);
-  });
-
-  it('조건에 맞는 기록이 없으면 합계 0, 평균·최대 null', () => {
-    const s = h.listRuns({ source: 'real', path: 'accept_direct' }).summary;
-    expect(s).toMatchObject({ runs: 0, total_tokens: 0, max_duration_ms: null, avg_model_calls: null, total_cost_usd: null });
+  it('상태 필터는 그 상태만 센다', () => {
+    const page = h.listRuns({ status: 'blocked_input', limit: 100 });
+    expect(page.items.every((r) => r.status === 'blocked_input')).toBe(true);
+    expect(page.summary.blocked_input_runs).toBe(page.summary.runs);
+    expect(page.summary.model_runs).toBe(0);
   });
 });
 
-describe('상세·케이스·집계 흉내', () => {
-  it('없는 ID는 404', () => {
-    expect(() => h.getRun('nope')).toThrowError(expect.objectContaining({ status: 404 }));
-    expect(() => h.getCase('T99')).toThrowError(expect.objectContaining({ status: 404 }));
+describe('sessions', () => {
+  it('질문 → 답변 케이스는 같은 세션의 두 턴이다', () => {
+    const c15 = MOCK_RUNS.find((d) => d.run.test_case_id === 'C15')!;
+    const s = h.getSession(c15.run.session_id);
+    expect(s.turns.map((t) => t.run.test_case_id)).toEqual(['C04', 'C15']);
+    expect(s.session.turns).toBe(2);
+    expect(s.turns[1]!.input.kind).toBe('answers');
+    expect(s.omitted_turns).toBe(0);
   });
 
-  it('케이스는 실행 4건과 상태별 건수', () => {
-    const c = h.getCase('T21');
-    expect(c.runs).toHaveLength(4);
-    expect(c.stats).toMatchObject({ runs: 4, outcome_unknown: 4, normal: 0, avg_model_calls: 4 });
-    expect(c.stats.last_started_at).toBe(c.runs[0]!.started_at);
+  it('세션 목록은 마지막 턴이 최근인 순서고 실제 요청만 거를 수 있다', () => {
+    const all = h.listSessions({ limit: 100 });
+    for (let i = 1; i < all.items.length; i += 1) expect(all.items[i - 1]!.last_started_at >= all.items[i]!.last_started_at).toBe(true);
+    const real = h.listSessions({ source: 'real', limit: 100 });
+    expect(real.items).toHaveLength(4);
+    expect(real.items.every((s) => s.test_case_id === null)).toBe(true);
   });
 
-  it('집계: 도구·비율·케이스', () => {
+  it('없는 세션은 404다', () => {
+    expect(() => h.getSession('nope')).toThrow(ApiError);
+  });
+});
+
+describe('cases·stats', () => {
+  it('케이스 집계는 3회 실행 기준이다', () => {
+    const c = h.getCase('C10');
+    expect(c.stats.runs).toBe(3);
+    expect(c.runs).toHaveLength(3);
+    expect(c.runs.every((r) => r.corrections === 1)).toBe(true);
+  });
+
+  it('도구 12개 중 예시에 쓰인 도구가 종류와 함께 집계된다', () => {
     const st = h.getStats({});
-    // 서버처럼 모델을 부른 요청만 담는다(직행 8건 제외).
-    expect(st.token_samples).toHaveLength(42);
-    const search = st.tools.find((t) => t.tool_name === 'search_goals')!;
-    // 케이스 7개 × 4회 + 실제 요청 4건 + 오류 요청 2건
-    expect(search.calls).toBe(34);
-    const reminder = st.tools.find((t) => t.tool_name === 'set_reminder')!;
-    expect(reminder).toMatchObject({ calls: 4, failed: 4, unknown: 0 });
-    expect(st.tools.find((t) => t.tool_name === 'set_schedule')).toMatchObject({ calls: 1, failed: 0, unknown: 0, tool_kind: 'mutation' });
-    // 예전 도구 이름은 새 기록에 남지 않는다.
-    expect(st.tools.some((t) => t.tool_name === 'set_goal_reminder' || t.tool_name === 'clear_goal_reminder')).toBe(false);
-    expect(st.tools.find((t) => t.tool_name === 'set_completion')).toMatchObject({ calls: 8, unknown: 4 });
-    expect(st.statuses.map((s) => s.value)).toEqual(['normal', 'tool_failed', 'outcome_unknown', 'error']);
-    expect(st.statuses.reduce((a, s) => a + s.ratio, 0)).toBeCloseTo(1);
-    expect(st.cases.map((c) => c.test_case_id)).toEqual(['T01', 'T03', 'T05', 'T10', 'T15', 'T18', 'T19', 'T20', 'T21', 'T24', 'T34']);
-    expect(st.tool_kinds.find((k) => k.value === 'query')!.count).toBe(st.tools.filter((t) => t.tool_kind === 'query').reduce((a, t) => a + t.calls, 0));
+    const names = st.tools.map((t) => t.tool_name);
+    expect(names).toContain('search_todos');
+    expect(names).toContain('propose_move_todo_to_plan');
+    expect(names).toContain('get_today_briefing');
+    expect(st.tool_kinds.map((k) => k.value)).toEqual(['query', 'proposal', 'briefing']);
+    expect(st.tools.find((t) => t.tool_name === 'search_plans')!.failed).toBe(3);
   });
 
-  it('집계는 필터를 따른다', () => {
-    const st = h.getStats({ path: 'reject_direct' });
-    expect(st.tools).toEqual([]);
-    expect(st.paths).toEqual([{ value: 'reject_direct', count: 4, ratio: 1 }]);
-  });
-});
-
-describe('대화 API 흉내', () => {
-  it('요청을 대화별로 묶고 마지막 요청이 최근인 대화부터 준다', () => {
-    const all = h.listConversations({ limit: 100 });
-    expect(all.items).toHaveLength(47);
-    expect(all.next_cursor).toBeNull();
-    const last = all.items.map((c) => c.last_started_at);
-    expect([...last].sort().reverse()).toEqual(last);
-    expect(all.items.reduce((a, c) => a + c.turns, 0)).toBe(50);
-
-    const real = h.listConversations({ source: 'real', limit: 100 });
-    expect(real.items).toHaveLength(3);
-    const multi = real.items.find((c) => c.conversation_id === REAL_CONVERSATION_ID)!;
-    expect(multi).toMatchObject({ turns: 4, test_turns: 0, first_input_preview: '오늘 뭐부터 하면 좋을까?', last_input_preview: '포트폴리오 진행 상황 알려줘' });
-    expect(multi.started_at < multi.last_started_at).toBe(true);
+  it('가드레일 집계는 층별 검사·차단 건수를 준다', () => {
+    const st = h.getStats({});
+    const length = st.guardrails.find((g) => g.layer === 'input' && g.name === 'length')!;
+    expect(length.blocked).toBe(3);
+    expect(length.checks).toBeGreaterThan(length.blocked);
+    expect(st.guardrails.find((g) => g.layer === 'limit')!.blocked).toBe(3);
   });
 
-  it('대화 커서는 요청 목록 커서와 바꿔 쓸 수 없다', () => {
-    const first = h.listConversations({ source: 'test', limit: 20 });
-    const second = h.listConversations({ source: 'test', limit: 20, cursor: first.next_cursor });
-    expect(new Set([...first.items, ...second.items].map((c) => c.conversation_id)).size).toBe(40);
-    expect(() => h.listConversations({ source: 'real', cursor: first.next_cursor })).toThrow(ApiError);
-    const runsCursor = h.listRuns({ source: 'test', limit: 20 }).next_cursor;
-    expect(() => h.listConversations({ source: 'test', limit: 20, cursor: runsCursor })).toThrow(ApiError);
-    expect(() => h.listConversations({ limit: 0 })).toThrow(ApiError);
-  });
-
-  it('대화 상세는 요청을 시작 순서로 쌓고 합계는 대화 전체다', () => {
-    const d = h.getConversation(REAL_CONVERSATION_ID);
-    expect(d.omitted_turns).toBe(0);
-    expect(d.turns.map((t) => t.run.conversation_id)).toEqual(Array(4).fill(REAL_CONVERSATION_ID));
-    const starts = d.turns.map((t) => t.run.started_at);
-    expect([...starts].sort()).toEqual(starts);
-    expect(d.conversation.input_tokens).toBe(d.turns.reduce((a, t) => a + t.run.input_tokens, 0));
-    // 뒤 턴의 이전 대화는 앞 턴으로 서버가 만든 모양이다.
-    expect(MOCK_RUNS.find((r) => r.run.request_id === d.turns[2]!.run.request_id)!.history).toHaveLength(4);
-    expect(() => h.getConversation('nope')).toThrow(ApiError);
+  it('token_samples는 모델을 부른 실행만 담는다', () => {
+    const st = h.getStats({});
+    expect(st.token_samples).toHaveLength(MOCK_RUNS.filter((d) => d.run.model_calls > 0).length);
+    expect(st.token_samples.every((n) => n > 0)).toBe(true);
   });
 });

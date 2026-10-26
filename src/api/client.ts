@@ -1,23 +1,23 @@
-// 조회 API 클라이언트. VITE_API_MODE=mock(기본)이면 내장 예시 데이터, live면 /v1/dashboard를 부른다.
+// 조회 API 클라이언트. VITE_API_MODE=mock(기본)이면 내장 예시 데이터, live면 /v2/dashboard를 부른다.
 import { ApiError } from './errors';
 import { createMockHandlers } from './mock/handlers';
 import type {
   CaseDetailResponse,
-  ConversationDetailResponse,
-  ConversationListResponse,
-  ConversationPage,
   RunDetailResponse,
   RunFilters,
   RunListResponse,
   RunPage,
+  SessionDetailResponse,
+  SessionListResponse,
+  SessionPage,
   StatsResponse,
 } from './types';
 
 export interface DashboardApi {
   listRuns(page: RunPage): Promise<RunListResponse>;
-  getRun(requestId: string): Promise<RunDetailResponse>;
-  listConversations(page: ConversationPage): Promise<ConversationListResponse>;
-  getConversation(conversationId: string): Promise<ConversationDetailResponse>;
+  getRun(turnId: string): Promise<RunDetailResponse>;
+  listSessions(page: SessionPage): Promise<SessionListResponse>;
+  getSession(sessionId: string): Promise<SessionDetailResponse>;
   getCase(testCaseId: string): Promise<CaseDetailResponse>;
   getStats(filters: RunFilters): Promise<StatsResponse>;
 }
@@ -26,12 +26,12 @@ export type ApiMode = 'mock' | 'live';
 
 export const apiMode: ApiMode = import.meta.env.VITE_API_MODE === 'live' ? 'live' : 'mock';
 
-const BASE = '/v1/dashboard';
+/** 브라우저가 부르는 경로. 개발 서버 프록시(vite.config.ts)가 백엔드 관리자 중계나 탱글 서버로 넘긴다. */
+export const BASE = '/v2/dashboard';
 
-export function toQuery(params: RunPage): string {
+export function toQuery(params: RunPage & SessionPage): string {
   const q = new URLSearchParams();
   if (params.source && params.source !== 'all') q.set('source', params.source);
-  if (params.path) q.set('path', params.path);
   if (params.status) q.set('status', params.status);
   if (params.limit) q.set('limit', String(params.limit));
   if (params.cursor) q.set('cursor', params.cursor);
@@ -59,8 +59,8 @@ async function getJson<T>(path: string): Promise<T> {
 const liveApi: DashboardApi = {
   listRuns: (page) => getJson(`/runs${toQuery(page)}`),
   getRun: (id) => getJson(`/runs/${encodeURIComponent(id)}`),
-  listConversations: (page) => getJson(`/conversations${toQuery(page)}`),
-  getConversation: (id) => getJson(`/conversations/${encodeURIComponent(id)}`),
+  listSessions: (page) => getJson(`/sessions${toQuery(page)}`),
+  getSession: (id) => getJson(`/sessions/${encodeURIComponent(id)}`),
   getCase: (id) => getJson(`/cases/${encodeURIComponent(id)}`),
   getStats: (f) => getJson(`/stats${toQuery(f)}`),
 };
@@ -83,8 +83,8 @@ function mockApi(): DashboardApi {
   return {
     listRuns: (page) => later(() => h.listRuns(page)),
     getRun: (id) => later(() => h.getRun(id)),
-    listConversations: (page) => later(() => h.listConversations(page)),
-    getConversation: (id) => later(() => h.getConversation(id)),
+    listSessions: (page) => later(() => h.listSessions(page)),
+    getSession: (id) => later(() => h.getSession(id)),
     getCase: (id) => later(() => h.getCase(id)),
     getStats: (f) => later(() => h.getStats(f)),
   };

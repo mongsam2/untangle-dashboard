@@ -1,0 +1,87 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px 18px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.bubbleWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.fallback {
+  padding: 1px 6px;
+  border: 1px dashed var(--text-secondary);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.bubble {
+  align-self: flex-start;
+  max-width: 90%;
+  padding: 10px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) 4px;
+  background: var(--surface-document);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.askText {
+  background: var(--surface-field);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.error {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-8);
+  background: var(--surface-danger);
+  color: var(--text-danger);
+  font-size: 14px;
+}
+
+.errorCode {
+  font-weight: 700;
+}
+
+.empty {
+  color: var(--text-secondary);
+  font-size: 14px;
+}

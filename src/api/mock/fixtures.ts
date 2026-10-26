@@ -1,761 +1,803 @@
-// 예시 데이터: 승인된 프로토타입의 11개 케이스 × 4회 = 44건을 API 응답 모양으로 옮기고,
-// 서버 시드처럼 실제 요청 4건, 응답 오류(error) 상태를 보여줄 실제 요청 2건을 더한다(모두 50건).
+/*
+ * 예시 데이터. 설계 문서(`docs/tangle/`)의 검증 사례와 도구 12개를 따라 실행 기록을 만든다.
+ * 테스트 케이스 18개 × 3회 + 실제 요청 세션 4개. 숫자는 고정 시드로 뽑아 실행할 때마다 같다.
+ */
 import type {
   AgentStep,
-  ChatInput,
   ChatResponse,
-  ChatView,
   ErrorResponse,
-  GoalDetail,
-  HistoryMessage,
-  JsonObject,
-  MutationResult,
-  NoteState,
-  OperationResult,
+  GuardrailLayer,
+  Item,
   Proposal,
-  ProposalChange,
+  ProposalType,
+  Question,
   RunDetailResponse,
-  RunPath,
+  RunInput,
+  RunListItem,
   RunStatus,
+  SelectedTarget,
+  ServerDecision,
+  StoredResponse,
+  TodayBriefingCard,
   ToolKind,
 } from '../types';
+import { toolKindOf } from '../../lib/kinds';
 
-const PRICE = { input: 2.0, cached: 0.2, output: 8.0 };
-const MOCK_MODEL = 'mock-model';
+export const MOCK_MODEL = 'mock-model';
 
-const TOOL_KIND: Record<string, ToolKind> = {
-  search_goals: 'query',
-  get_goal: 'query',
-  get_change_history: 'query',
-  get_proposals: 'query',
-  create_goal: 'mutation',
-  update_goal_details: 'mutation',
-  create_proposal: 'mutation',
-  apply_proposal: 'mutation',
-  set_completion: 'mutation',
-  set_schedule: 'mutation',
-  set_reminder: 'mutation',
-  // set_schedule·set_reminder로 바뀌기 전의 이름. 예전 실행 기록에는 남아 있다.
-  set_goal_reminder: 'mutation',
-  clear_goal_reminder: 'mutation',
+// ── 결정적 난수와 ID ────────────────────────────────────────────────────
+
+let seed = 20261023;
+function rand(): number {
+  seed = (seed * 1664525 + 1013904223) % 4294967296;
+  return seed / 4294967296;
+}
+const between = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
+const jitter = (base: number, ratio = 0.25) => Math.round(base * (1 - ratio + rand() * ratio * 2));
+
+let idCounter = 0;
+function uuid(): string {
+  idCounter += 1;
+  const hex = (n: number, w: number) => n.toString(16).padStart(w, '0');
+  const a = hex(between(0, 0xffffffff), 8);
+  return `${a}-${hex(between(0, 0xffff), 4)}-4${hex(between(0, 0xfff), 3)}-8${hex(between(0, 0xfff), 3)}-${hex(idCounter, 12)}`;
+}
+
+// ── 사용자 항목(동기화 사본) ────────────────────────────────────────────
+
+const item = (p: Partial<Item> & { title: string; category: Item['category'] }): Item => ({
+  id: uuid(),
+  is_completed: false,
+  estimated_minutes: null,
+  memo: null,
+  date: null,
+  time: null,
+  reminder_minutes_before: null,
+  subtasks: [],
+  ...p,
+});
+
+const sub = (title: string, done = false) => ({ id: uuid(), title, is_completed: done });
+
+const ITEMS = {
+  report: item({ category: 'todo', title: '보고서 초안', estimated_minutes: 120, subtasks: [sub('자료 모으기', true), sub('목차 잡기')] }),
+  gift: item({ category: 'todo', title: '엄마 생일 선물 사기', estimated_minutes: 30 }),
+  laundry: item({ category: 'todo', title: '빨래 돌리기' }),
+  portfolio: item({ category: 'todo', title: '포트폴리오 정리', estimated_minutes: 180, memo: '사이트 3개 추려서' }),
+  meeting: item({ category: 'plan', title: '팀 회의', date: '2026-10-23', time: '15:00', reminder_minutes_before: 10, estimated_minutes: 60 }),
+  dentist: item({ category: 'plan', title: '치과 예약', date: '2026-10-24', time: '11:00', reminder_minutes_before: 30 }),
+  workout: item({ category: 'plan', title: '운동', date: '2026-10-23', estimated_minutes: 45 }),
+  study: item({ category: 'todo', title: '토익 단어 외우기', estimated_minutes: 40 }),
+  mail: item({ category: 'todo', title: '우편물 부치기' }),
 };
 
-interface ModelSrc {
-  k: 'model';
+const plain = (it: Item): Item => structuredClone(it);
+const withCategory = (it: Item, p: Partial<Item>): Item => ({ ...plain(it), ...p });
+
+// ── 단계 만들기 ─────────────────────────────────────────────────────────
+
+const blank = (): AgentStep => ({
+  seq: 0,
+  kind: 'server',
+  started_at: '',
+  duration_ms: 0,
+  model: null,
+  input_tokens: null,
+  cached_tokens: null,
+  output_tokens: null,
+  reasoning_tokens: null,
+  cost_usd: null,
+  reasoning_summary: null,
+  reasoning_summary_ko: null,
+  next_action: null,
+  tool_name: null,
+  tool_kind: null,
+  status: null,
+  arguments: null,
+  result: null,
+  error_code: null,
+  guardrail_layer: null,
+  guardrail_name: null,
+  passed: null,
+  note: null,
+  decision: null,
+});
+
+type StepSpec = Partial<AgentStep> & { duration_ms: number };
+
+const guard = (layer: GuardrailLayer, name: string, passed = true, note: string | null = null): StepSpec => ({
+  kind: 'guardrail',
+  guardrail_layer: layer,
+  guardrail_name: name,
+  passed,
+  note,
+  duration_ms: between(1, 6),
+});
+
+/** 입력 가드레일 묶음. 모델을 부르기 전에 모두 끝난다. */
+const inputGuards = (answers = false): StepSpec[] => [
+  guard('input', 'identity', true, '프록시 신원·세션·턴 연결'),
+  guard('input', answers ? 'answer_bundle' : 'length', true, answers ? '질문 묶음 전체 답변 확인' : '4,000자 이내'),
+  guard('input', 'ownership', true, '선택 항목·멘션 소유권 확인'),
+];
+
+// 가격: 입력 $1.25/M, 캐시 입력 $0.125/M, 출력 $10/M (예시값)
+const cost = (fresh: number, cached: number, out: number) => Math.round((fresh * 1.25 + cached * 0.125 + out * 10) * 1e-6 * 1e6) / 1e6;
+
+interface ModelSpec {
   input: number;
-  cached: number;
+  cached?: number;
   output: number;
-  reasoning: number;
-  ms: number;
-  summary: string;
+  reasoning?: number;
+  ko: string;
+  en: string;
   next: string;
-}
-interface ToolSrc {
-  k: 'tool';
-  tool: string;
-  ms: number;
-  status: string;
-  args: JsonObject;
-  result: JsonObject;
-  error: { code: string; message: string } | null;
-}
-interface ServerSrc {
-  k: 'server';
-  decision: 'accept_direct' | 'reject_direct' | 'mutation_blocked';
-  text: string;
-  ms: number;
-  blocked?: { tool: string; args: JsonObject; code: string };
-}
-/** 프로토타입의 "모델 답변 대신 오류 메시지" 표시. API에서는 단계가 아니라 run.message_replaced다. */
-interface SwapSrc {
-  k: 'swap';
-}
-type StepSrc = ModelSrc | ToolSrc | ServerSrc | SwapSrc;
-
-function M(input: number, cached: number, output: number, reasoning: number, ms: number, summary: string, next: string): ModelSrc {
-  return { k: 'model', input, cached, output, reasoning, ms, summary, next: next === 'final' ? 'final_answer' : next };
-}
-function T(tool: string, ms: number, status: string, args: JsonObject, result: JsonObject, error?: { code: string; message: string }): ToolSrc {
-  return { k: 'tool', tool, ms, status, args, result, error: error ?? null };
-}
-function S(decision: ServerSrc['decision'], text: string, ms = 6, blocked?: ServerSrc['blocked']): ServerSrc {
-  return { k: 'server', decision, text, ms, blocked };
-}
-const FAIL_SWAP: SwapSrc = { k: 'swap' };
-
-const CAT_ORDER = ['start', 'sustain', 'finish'] as const;
-type Cat = (typeof CAT_ORDER)[number];
-
-interface PItem {
-  key?: string;
-  id?: string;
-  title: string;
-  criteria?: string;
-  /** 사용자가 직접 만든 과제는 역할(category)이 없다. */
-  category: Cat | null;
-  start_date?: string;
-  start_time?: string;
-  estimated_minutes?: number;
-  status?: 'completed';
-  split?: boolean;
-}
-interface PSrc {
-  id: string;
-  goal_id: string;
-  type: 'initial_roadmap' | 'adjustment';
-  created_at: string;
-  reason: string;
-  goal: { title: string; criteria: string; deadline: string };
-  items: PItem[];
-  changes: ProposalChange[];
+  duration?: number;
 }
 
-/** 제안서 과제의 예정 시작·예상 소요 시간. 정해진 것만 담는다. */
-function scheduleOf(it: PItem) {
+const model = (m: ModelSpec): StepSpec => {
+  const input = jitter(m.input, 0.15);
+  const cached = Math.min(input, jitter(m.cached ?? Math.round(input * 0.7), 0.2));
+  const output = jitter(m.output, 0.2);
+  const reasoning = Math.min(output, jitter(m.reasoning ?? Math.round(output * 0.6), 0.3));
   return {
-    ...(it.start_date ? { start_date: it.start_date } : {}),
-    ...(it.start_time ? { start_time: it.start_time } : {}),
-    ...(it.estimated_minutes != null ? { estimated_minutes: it.estimated_minutes } : {}),
+    kind: 'model',
+    model: MOCK_MODEL,
+    input_tokens: input,
+    cached_tokens: cached,
+    output_tokens: output,
+    reasoning_tokens: reasoning,
+    cost_usd: cost(input - cached, cached, output),
+    reasoning_summary: m.en,
+    reasoning_summary_ko: m.ko,
+    next_action: m.next,
+    duration_ms: jitter(m.duration ?? 1500 + output * 4, 0.3),
   };
-}
+};
 
-const GOAL_PORTFOLIO = { title: '포트폴리오 공개', criteria: '대표 프로젝트 3개를 공개 페이지에 게시', deadline: '2026-10-31T23:59:00+09:00' };
+const tool = (name: string, args: Record<string, unknown>, result: unknown, duration = 40): StepSpec => ({
+  kind: 'tool',
+  tool_name: name,
+  tool_kind: toolKindOf(name),
+  status: 'success',
+  arguments: args,
+  result,
+  duration_ms: jitter(duration, 0.4),
+});
 
-// 제안서 카드와 create_proposal 인자는 같은 정의에서 만든다(changes와 result_preview가 정확히 같아야 하는 서버 규칙).
-const P9_ITEMS: PItem[] = [
-  { key: 'c1', title: '공개할 프로젝트 3개 고르기', criteria: '프로젝트 이름 3개를 적어 둠', category: 'start', start_date: '2026-10-20', start_time: '09:00', estimated_minutes: 30 },
-  { key: 'c2', title: '프로젝트별 보여줄 내용 적기', category: 'sustain' },
-  { key: 'c3', title: '소개 페이지 만들기', category: 'sustain' },
-  { key: 'c4', title: '게시한 사이트 확인하기', category: 'finish' },
+const toolFail = (name: string, args: Record<string, unknown>, code: string, message: string, fieldErrors: { path: string; message: string }[] = []): StepSpec => ({
+  kind: 'tool',
+  tool_name: name,
+  tool_kind: toolKindOf(name),
+  status: 'failed',
+  arguments: args,
+  result: { error: { code, message, field_errors: fieldErrors } },
+  error_code: code,
+  duration_ms: jitter(30, 0.4),
+});
+
+/** 도구 호출 전 인자 검사와 호출 뒤 결과 정리. 도구 가드레일 층에 속한다. */
+const toolGuards = (name: string, argsPassed = true, note: string | null = null): StepSpec[] =>
+  argsPassed ? [guard('tool', name + '.arguments', true, 'strict 스키마·소유권·계획 규칙')] : [guard('tool', name + '.arguments', false, note)];
+
+const resultGuard = (name: string): StepSpec => guard('tool', name + '.result', true, '노출 차단·실패 구분·크기');
+
+const outputGuards = (passed = true, note: string | null = null): StepSpec[] => [
+  guard('output', 'structure', true, 'answer·ask·정보 카드 중 하나 이상'),
+  guard('output', 'length', true, '질문 200자·선택지 40자 이내(UTF-16)'),
+  guard('output', 'references', passed, note ?? '참조가 현재 턴의 유효한 제안·항목'),
 ];
-const P9: PSrc = {
-  id: 'p-9',
-  goal_id: 'g-1',
-  type: 'initial_roadmap',
-  created_at: '2026-10-18T20:15:00+09:00',
-  reason: '아직 과제가 없어서, 목표까지 이어지는 첫 로드맵을 제안해요.',
-  goal: GOAL_PORTFOLIO,
-  items: P9_ITEMS,
-  changes: P9_ITEMS.map((it, i) => ({
-    action: 'create_challenge' as const,
-    temp_key: it.key!,
-    values: { title: it.title, ...(it.criteria ? { completion_criteria: it.criteria } : {}), ...scheduleOf(it), category: it.category!, sort_order: i + 1 },
-  })),
-};
-const P12: PSrc = {
-  id: 'p-12',
-  goal_id: 'g-1',
-  type: 'adjustment',
-  created_at: '2026-10-19T11:02:00+09:00',
-  reason: "'프로젝트별 보여줄 내용 적기'에 쓰기와 자료 정리가 섞여 있어서 두 과제로 나눠요.",
-  goal: GOAL_PORTFOLIO,
-  items: [
-    { id: 'c-11', title: '공개할 프로젝트 3개 고르기', category: 'start', status: 'completed' },
-    { key: 'n1', title: '프로젝트별 핵심 성과 3줄로 적기', category: 'sustain', split: true },
-    { key: 'n2', title: '스크린샷과 링크 정리하기', category: 'sustain', split: true },
-    { id: 'c-13', title: '소개 페이지 만들기', category: 'sustain' },
-    { id: 'c-14', title: '게시한 사이트 확인하기', category: 'finish' },
-  ],
-  changes: [
-    {
-      action: 'split_challenge',
-      challenge_id: 'c-12',
-      replacements: [
-        { temp_key: 'n1', values: { title: '프로젝트별 핵심 성과 3줄로 적기', category: 'sustain', sort_order: 2 } },
-        { temp_key: 'n2', values: { title: '스크린샷과 링크 정리하기', category: 'sustain', sort_order: 3 } },
-      ],
-    },
-    { action: 'update_challenge', challenge_id: 'c-13', values: { sort_order: 4 } },
-    { action: 'update_challenge', challenge_id: 'c-14', values: { sort_order: 5 } },
-  ],
-};
 
-function previewOf(p: PSrc): JsonObject {
-  return {
-    goal: { title: p.goal.title, completion_criteria: p.goal.criteria, current_deadline: p.goal.deadline },
-    roadmap: p.items.map((it, i) => ({
-      reference: (it.id ? { type: 'existing', challenge_id: it.id } : { type: 'new', temp_key: it.key! }) as JsonObject,
-      title: it.title,
-      ...(it.criteria ? { completion_criteria: it.criteria } : {}),
-      ...scheduleOf(it),
-      category: it.category,
-      sort_order: i + 1,
-      status: it.status ?? 'incomplete',
-    })),
-  };
-}
-function proposalArgs(p: PSrc): JsonObject {
-  return { goal_id: p.goal_id, type: p.type, reason: p.reason, changes: p.changes as unknown as JsonObject[], result_preview: previewOf(p) };
-}
-function proposalSaved(p: PSrc): JsonObject {
-  return { status: 'applied', proposal: { id: p.id, type: p.type, is_applied: false, created_at: p.created_at } };
-}
-function proposalOf(p: PSrc, applied: boolean): Proposal {
-  return {
-    id: p.id,
-    goal_id: p.goal_id,
-    type: p.type,
-    reason: p.reason,
-    changes: p.changes,
-    result_preview: previewOf(p) as unknown as Proposal['result_preview'],
-    created_at: p.created_at,
-    is_applied: applied,
-  };
-}
+/** 질문·선택지 문구가 백엔드 길이 제약을 넘긴 출력. 구조는 통과하고 길이에서 막힌다. */
+const outputLengthGuards = (note: string): StepSpec[] => [
+  guard('output', 'structure', true, 'answer·ask·정보 카드 중 하나 이상'),
+  guard('output', 'length', false, note),
+];
 
-const USER_ID = 'u-1';
-const GOAL_DETAIL: Record<string, GoalDetail> = {
-  // 로드맵 제안 직후: 아직 과제가 없다.
-  T10: {
-    goal: {
-      id: 'g-1', user_id: USER_ID, title: '포트폴리오 공개', status: 'in_progress', initial_title: '포트폴리오 공개',
-      completion_criteria: GOAL_PORTFOLIO.criteria, current_deadline: GOAL_PORTFOLIO.deadline, initial_deadline: GOAL_PORTFOLIO.deadline,
-      started_at: '2026-10-12T21:00:00+09:00', adjustment_count: 0, start_date: '2026-10-20', start_time: '09:00',
-    },
-    challenges: [],
-  },
-  T20: {
-    goal: {
-      id: 'g-1', user_id: USER_ID, title: '포트폴리오 공개', status: 'in_progress', initial_title: '포트폴리오 공개',
-      completion_criteria: GOAL_PORTFOLIO.criteria, current_deadline: GOAL_PORTFOLIO.deadline, initial_deadline: GOAL_PORTFOLIO.deadline,
-      started_at: '2026-10-12T21:00:00+09:00', adjustment_count: 0, start_date: '2026-10-20', start_time: '09:00',
-    },
-    challenges: P9_ITEMS.map((it, i) => ({
-      id: 'c-1' + (i + 1), goal_id: 'g-1', title: it.title, completion_criteria: it.criteria ?? null, category: it.category,
-      sort_order: i + 1, origin: 'agent' as const, status: 'incomplete' as const, created_at: '2026-10-19T09:00:00+09:00', ...scheduleOf(it),
-    })),
-  },
-  T24: {
-    goal: { id: 'g-3', user_id: USER_ID, title: '토익 850점 받기', status: 'in_progress', initial_title: '토익 850점 받기', started_at: '2026-10-01T10:00:00+09:00', adjustment_count: 0 },
-    challenges: [
-      { id: 'c-31', goal_id: 'g-3', title: '단어장 1회독', category: 'start', sort_order: 1, origin: 'agent', status: 'completed', created_at: '2026-10-01T10:05:00+09:00', completed_at: '2026-10-19T15:10:00+09:00' },
-      { id: 'c-32', goal_id: 'g-3', title: 'LC 파트 2 풀어 보기', category: 'sustain', sort_order: 2, origin: 'agent', status: 'incomplete', created_at: '2026-10-01T10:05:00+09:00' },
-      // 사용자가 직접 만든 과제는 역할(category)이 없고, 시간 속성을 직접 정할 수 있다.
-      { id: 'c-33', goal_id: 'g-3', title: '모의고사 1회 풀기', description: '실전처럼 시간을 재고 푼다.', category: null, sort_order: 3, origin: 'user', status: 'incomplete', created_at: '2026-10-19T14:20:00+09:00', start_date: '2026-10-24', start_time: '10:00', estimated_minutes: 120, deadline: '2026-10-25T23:59:00+09:00' },
-    ],
-  },
-  T01: {
-    goal: { id: 'g-7', user_id: USER_ID, title: '토익 900점 받기', status: 'in_progress', initial_title: '토익 900점 받기', started_at: '2026-10-19T09:30:00+09:00', adjustment_count: 0 },
-    challenges: [],
-  },
-};
+const server = (decision: ServerDecision, note: string): StepSpec => ({ kind: 'server', decision, note, duration_ms: between(3, 18) });
 
-type Op = [string, string, string, string];
+// ── 응답 만들기 ─────────────────────────────────────────────────────────
 
-interface CaseSrc {
-  id: string;
-  title: string;
-  conv: string;
-  input: ChatInput;
-  path: RunPath;
+const ANSWER = (text: string) => ({ text });
+
+const proposal = (type: ProposalType, before: Item | null, after: Item | null, operations: Proposal['content']['operations']): Proposal => ({
+  proposal_id: uuid(),
+  proposal_type: type,
+  target_item_id: before?.id ?? null,
+  content: { before, after, operations },
+});
+
+const question = (text: string, options: { text: string; item_id?: string | null }[]): Question => ({
+  question_id: uuid(),
+  text,
+  options: options.map((o) => ({ option_id: 'opt_' + uuid().slice(0, 8), text: o.text, item_id: o.item_id ?? null })),
+});
+
+const chat = (sessionId: string, turnId: string, body: Partial<ChatResponse>): ChatResponse => ({
+  session_id: sessionId,
+  turn_id: turnId,
+  response_id: uuid(),
+  answer: null,
+  ask: null,
+  information_cards: [],
+  ...body,
+});
+
+const errorResponse = (turnId: string, code: string, message: string, retryable = false): ErrorResponse => ({ turn_id: turnId, error: { code, message, retryable } });
+
+// ── 실행 조립 ───────────────────────────────────────────────────────────
+
+interface RunSpec {
+  caseId: string | null;
+  sessionId: string;
+  startedAt: number;
+  input: Omit<RunInput, 'context'> & { targets?: SelectedTarget[] };
+  steps: StepSpec[];
   status: RunStatus;
-  steps: StepSrc[];
-  reply: { message: string; options: string[]; views: ('proposal' | 'goal_detail')[]; ops: Op[] };
+  response: ((sessionId: string, turnId: string) => StoredResponse) | null;
+  /** 끝나지 않은 실행이면 true. */
+  unfinished?: boolean;
 }
 
-const msg = (text: string): ChatInput => ({ type: 'message', text });
+const TZ = 'Asia/Seoul';
+const iso = (ms: number) => new Date(ms).toISOString();
+const isoLocal = (ms: number) => new Date(ms + 9 * 3600000).toISOString().replace('Z', '+09:00').replace(/\.\d{3}/, '');
 
-const CASES: CaseSrc[] = [
-  { id: 'T10', title: '전체 로드맵과 첫 과제 추천', conv: 'c-portfolio', input: msg('로드맵을 제안해줘.'), path: 'model', status: 'normal',
-    steps: [
-      M(7400, 5800, 250, 160, 1900, '포트폴리오 목표가 있는지 먼저 확인해야 한다. 목표 이름으로 검색한다.', 'search_goals'),
-      T('search_goals', 40, 'success', { query: '포트폴리오' }, { status: 'success', goals: [{ id: 'g-1', title: '포트폴리오 공개', status: 'active' }], next_cursor: null }),
-      M(7900, 7200, 180, 110, 1600, '목표가 하나로 특정된다. 기한과 완료 기준이 확정됐는지 상세를 본다.', 'get_goal'),
-      T('get_goal', 55, 'success', { goal_id: 'g-1' }, { status: 'success', data: { goal: { id: 'g-1', title: '포트폴리오 공개', current_deadline: '2026-10-31T23:59:00+09:00', completion_criteria: '대표 프로젝트 3개를 공개 페이지에 게시' }, roadmap: [] } }),
-      M(8600, 7800, 1550, 450, 4300, "과제가 아직 없으니 initial_roadmap 제안을 만든다. 시작 과제는 부담이 가장 적은 '프로젝트 고르기'로 둔다.", 'create_proposal'),
-      T('create_proposal', 120, 'applied', proposalArgs(P9), proposalSaved(P9)),
-      M(9900, 8500, 260, 100, 1700, '제안을 저장했지만 아직 반영 전이다. 제안 카드를 보여주고 수락 선택지를 준다.', 'final'),
-    ],
-    reply: { message: "프로젝트 고르기부터 게시 확인까지 4단계로 제안했어요. 먼저 '공개할 프로젝트 3개 고르기'부터 시작해 보세요.", options: ['제안 수락', '수정하고 싶어요', '지금은 안 할게요'], views: ['proposal', 'goal_detail'], ops: [['create_proposal', 'proposal', 'p-9', 'applied']] } },
-  { id: 'T20', title: '제안 수락 시 모델 없이 반영', conv: 'c-portfolio', input: { type: 'proposal_accept', proposal_id: 'p-9' }, path: 'accept_direct', status: 'normal',
-    steps: [
-      S('accept_direct', '입력이 proposal_accept이고 직전 응답의 제안 p-9와 일치해 수락 근거를 확인함. 모델을 부르지 않고 apply_proposal을 바로 실행', 8),
-      T('apply_proposal', 140, 'applied', { proposal_id: 'p-9' }, { status: 'applied', proposal: { id: 'p-9', is_applied: true }, data: { goal: { id: 'g-1', title: '포트폴리오 공개' }, roadmap: '(과제 4개)' } }),
-    ],
-    reply: { message: '제안을 반영했어요.', options: [], views: ['goal_detail', 'proposal'], ops: [['apply_proposal', 'proposal', 'p-9', 'applied']] } },
-  { id: 'T18', title: '제안 거절 시 변경 없이 종료', conv: 'c-room', input: { type: 'proposal_reject', proposal_id: 'p-7' }, path: 'reject_direct', status: 'normal',
-    steps: [S('reject_direct', '입력이 proposal_reject라 제안이 있는지만 확인하고 모델·도구 없이 종료', 12)],
-    reply: { message: '제안을 반영하지 않았어요.', options: [], views: [], ops: [] } },
-  { id: 'T24', title: '명시적인 완료 체크 요청', conv: 'c-toeic', input: msg('토익 단어장 1회독 다 했어, 체크해줘'), path: 'model', status: 'normal',
-    steps: [
-      M(7300, 5800, 140, 90, 1500, "체크할 과제가 어느 목표에 있는지 모른다. '토익'으로 목표를 찾는다.", 'search_goals'),
-      T('search_goals', 38, 'success', { query: '토익' }, { status: 'success', goals: [{ id: 'g-3', title: '토익 850점 받기', status: 'active' }], next_cursor: null }),
-      M(7800, 7100, 120, 70, 1400, "목표는 하나다. 로드맵에서 '단어장 1회독' 과제 ID를 확인한다.", 'get_goal'),
-      T('get_goal', 52, 'success', { goal_id: 'g-3' }, { status: 'success', data: { goal: { id: 'g-3', title: '토익 850점 받기' }, roadmap: [{ id: 'c-31', title: '단어장 1회독', completed_at: null }, { id: 'c-32', title: 'LC 파트 2 풀어 보기', completed_at: null }] } }),
-      M(8500, 7700, 150, 80, 1500, '사용자가 명시적으로 체크를 요청했다. c-31만 완료로 체크한다.', 'set_completion'),
-      T('set_completion', 90, 'applied', { target_type: 'challenge', target_id: 'c-31', completed: true }, { status: 'applied', target: { target_type: 'challenge', data: { id: 'c-31', completed_at: '2026-10-19T15:10:00+09:00' } } }),
-      M(8900, 8300, 210, 60, 1300, '체크가 반영됐다. 남은 미완료 과제 하나를 다음 행동으로 추천한다.', 'final'),
-    ],
-    reply: { message: "'단어장 1회독'을 완료로 체크했어요. 다음은 'LC 파트 2 풀어 보기'예요.", options: [], views: ['goal_detail'], ops: [['set_completion', 'challenge', 'c-31', 'applied']] } },
-  { id: 'T05', title: '검색 결과가 없는 경우', conv: 'c-health', input: msg('운동 목표 어떻게 돼 가?'), path: 'model', status: 'normal',
-    steps: [
-      M(7200, 5800, 130, 80, 1400, '운동 관련 목표가 있는지 검색해서 현재 상태를 확인한다.', 'search_goals'),
-      T('search_goals', 35, 'success', { query: '운동' }, { status: 'success', goals: [], next_cursor: null }),
-      M(7500, 7000, 240, 110, 1700, '검색 결과가 없다. 목표를 만들지 않고 만들지 물어본다.', 'final'),
-    ],
-    reply: { message: "'운동' 관련 목표를 찾지 못했어요. 새로 만들어 볼까요?", options: ['운동 목표 만들기', '다른 이름으로 찾아줘'], views: [], ops: [] } },
-  { id: 'T03', title: '조언만 요청 시 도구 없이 답변', conv: 'c-tips', input: msg('목표 세우는 팁만 알려줘'), path: 'model', status: 'normal',
-    steps: [M(7100, 5800, 520, 160, 2600, '조언만 원한다. 목표를 만들거나 조회할 필요가 없으니 바로 답한다.', 'final')],
-    reply: { message: "'언제까지, 무엇을 하면 끝인지'가 보이게 적으면 시작하기 쉬워요. 기한을 하나 정하고, 끝났다고 말할 수 있는 기준을 한 줄로 적어 보세요.", options: ['목표 하나 같이 세우기'], views: [], ops: [] } },
-  { id: 'T34', title: '저장 실패를 성공으로 말하지 않기', conv: 'c-portfolio', input: msg('포트폴리오 목표 알림 30분 전으로 해줘'), path: 'model', status: 'tool_failed',
-    steps: [
-      M(7300, 5800, 150, 90, 1500, '알림을 설정할 목표를 찾는다.', 'search_goals'),
-      T('search_goals', 41, 'success', { query: '포트폴리오' }, { status: 'success', goals: [{ id: 'g-1', title: '포트폴리오 공개' }], next_cursor: null }),
-      M(7800, 7100, 110, 60, 1300, '지금은 목표의 예정 시작 기준 알림만 걸 수 있다. 예정 시작이 있는지 확인한다.', 'get_goal'),
-      T('get_goal', 50, 'success', { goal_id: 'g-1' }, { status: 'success', data: { goal: { id: 'g-1', start_date: '2026-10-20', start_time: '09:00', reminder_base: null, reminder_minutes_before: null } } }),
-      M(8500, 7700, 160, 90, 1500, '예정 시작이 있다. 사용자가 명시한 30분 전을 시작 기준 알림으로 저장한다.', 'set_reminder'),
-      T('set_reminder', 2100, 'failed', { target_type: 'goal', target_id: 'g-1', base: 'start', minutes_before: 30 }, { status: 'failed', error: { code: 'dependency_unavailable', message: '저장소에 연결할 수 없어요.', retryable: true } }, { code: 'dependency_unavailable', message: '저장소에 연결할 수 없어요.' }),
-      M(8900, 8300, 190, 70, 1400, '저장에 실패했다. 성공했다고 말하지 않고 다시 시도하도록 안내한다.', 'final'),
-      FAIL_SWAP,
-    ],
-    reply: { message: '저장소에 연결할 수 없어요.', options: [], views: [], ops: [['set_reminder', 'goal', 'g-1', 'failed']] } },
-  { id: 'T21', title: '저장 결과 unknown 뒤 추가 변경 차단', conv: 'c-toeic', input: msg('LC 파트 2도 체크하고 토익 알림은 꺼줘'), path: 'model', status: 'outcome_unknown',
-    steps: [
-      M(7350, 5800, 190, 120, 1600, '두 가지를 요청했다. 먼저 토익 목표와 과제를 찾는다.', 'search_goals'),
-      T('search_goals', 39, 'success', { query: '토익' }, { status: 'success', goals: [{ id: 'g-3', title: '토익 850점 받기' }], next_cursor: null }),
-      M(7900, 7200, 150, 90, 1500, "목록에서 c-32가 'LC 파트 2 풀어 보기'다. 완료 체크부터 한다.", 'set_completion'),
-      T('set_completion', 9000, 'unknown', { target_type: 'challenge', target_id: 'c-32', completed: true }, { status: 'unknown', error: { code: 'outcome_unknown', message: '반영 여부를 확인하지 못했어요. 다시 조회해야 해요.', retryable: true } }, { code: 'outcome_unknown', message: '반영 여부를 확인하지 못했어요. 다시 조회해야 해요.' }),
-      M(8300, 7800, 180, 140, 1700, '체크 결과가 unknown이지만 알림 해제도 요청받았다. set_reminder에 minutes_before=null을 보내 해제한다.', 'set_reminder'),
-      // 서버는 차단한 변경을 tool 단계가 아니라 막힌 도구 이름·인자를 담은 server 단계 하나로 남긴다.
-      S('mutation_blocked', '앞선 set_completion의 반영 여부를 몰라 다음 변경을 막았다.', 1, { tool: 'set_reminder', args: { target_type: 'goal', target_id: 'g-3', base: null, minutes_before: null }, code: 'conflict' }),
-      M(8700, 8100, 200, 90, 1500, '알림 해제가 막혔다. 실제 상태를 먼저 확인해야 한다고 안내한다.', 'final'),
-      FAIL_SWAP,
-    ],
-    reply: { message: '반영 여부를 확인하지 못했어요. 다시 조회해야 해요.', options: [], views: [], ops: [['set_completion', 'challenge', 'c-32', 'unknown']] } },
-  { id: 'T15', title: '과제 분할과 원본 보존', conv: 'c-portfolio', input: msg('내용 정리 과제를 두 개로 나눠줘'), path: 'model', status: 'normal',
-    steps: [
-      M(7400, 5800, 160, 100, 1500, "어느 목표의 '내용 정리' 과제인지 찾는다.", 'search_goals'),
-      T('search_goals', 40, 'success', { query: '포트폴리오' }, { status: 'success', goals: [{ id: 'g-1', title: '포트폴리오 공개' }], next_cursor: null }),
-      M(7900, 7200, 120, 70, 1400, '로드맵에서 분할할 과제를 확인한다.', 'get_goal'),
-      T('get_goal', 58, 'success', { goal_id: 'g-1' }, { status: 'success', data: { goal: { id: 'g-1' }, roadmap: [{ id: 'c-11', title: '공개할 프로젝트 3개 고르기', completed_at: '2026-10-15' }, { id: 'c-12', title: '프로젝트별 보여줄 내용 적기', completed_at: null }, { id: 'c-13', title: '소개 페이지 만들기', completed_at: null }, { id: 'c-14', title: '게시한 사이트 확인하기', completed_at: null }] } }),
-      M(9800, 7800, 170, 120, 1700, 'c-12가 이전에 어떻게 바뀌었는지 보고 같은 분할을 반복하지 않는다.', 'get_change_history'),
-      T('get_change_history', 62, 'success', { goal_id: 'g-1', challenge_id: 'c-12' }, { status: 'success', entries: [{ change_type: 'create', reason: '최초 로드맵', changed_at: '2026-10-12T21:04:00+09:00' }], next_cursor: null }),
-      M(10600, 9600, 1900, 620, 5200, '확정된 로드맵이라 adjustment 제안을 만든다. c-12는 삭제로 남기고 새 과제 2개를 split_from으로 잇는다.', 'create_proposal'),
-      T('create_proposal', 130, 'applied', proposalArgs(P12), proposalSaved(P12)),
-      M(12300, 10500, 300, 110, 1800, '제안만 저장했다. 반영됐다고 말하지 않고 수락을 기다린다.', 'final'),
-    ],
-    reply: { message: "'프로젝트별 보여줄 내용 적기'를 두 단계로 나누는 제안을 만들었어요.", options: ['제안 수락', '수정하고 싶어요', '지금은 안 할게요'], views: ['proposal'], ops: [['create_proposal', 'proposal', 'p-12', 'applied']] } },
-  { id: 'T01', title: '목표만 추가 요청', conv: 'c-toeic2', input: msg('토익 900점 목표 하나 추가해줘'), path: 'model', status: 'normal',
-    steps: [
-      M(7200, 5800, 210, 90, 1600, '목표 추가만 요청했다. 제목만 확정하고 나머지 상세는 미확정으로 둔다.', 'create_goal'),
-      T('create_goal', 85, 'applied', { title: '토익 900점 받기' }, { status: 'applied', goal: { id: 'g-7', title: '토익 900점 받기', current_deadline: null, completion_criteria: null } }),
-      M(7700, 7000, 230, 80, 1500, '요청 범위는 여기까지다. 다음 단계는 선택지로만 제시한다.', 'final'),
-    ],
-    reply: { message: "'토익 900점 받기' 목표를 추가했어요. 기한과 완료 기준은 비워 뒀어요.", options: ['기한 정하기', '로드맵도 같이 세우기', '이대로 둘게요'], views: ['goal_detail'], ops: [['create_goal', 'goal', 'g-7', 'applied']] } },
-  { id: 'T19', title: '이전 제안과 반영 여부 조회', conv: 'c-portfolio', input: msg('지난번에 받은 제안 반영됐어?'), path: 'model', status: 'normal',
-    steps: [
-      M(7300, 5800, 150, 90, 1400, '어느 목표의 제안인지 찾는다.', 'search_goals'),
-      T('search_goals', 37, 'success', { query: '포트폴리오' }, { status: 'success', goals: [{ id: 'g-1', title: '포트폴리오 공개' }], next_cursor: null }),
-      M(7800, 7100, 130, 70, 1300, '대화에 남은 목록을 믿지 말고 저장된 제안의 반영 여부를 조회한다.', 'get_proposals'),
-      T('get_proposals', 48, 'success', { goal_id: 'g-1' }, { status: 'success', proposals: [{ id: 'p-12', type: 'adjustment', is_applied: false, created_at: '2026-10-19T11:02:00+09:00' }, { id: 'p-9', type: 'initial_roadmap', is_applied: true, created_at: '2026-10-18T20:15:00+09:00' }], next_cursor: null }),
-      M(8600, 7700, 280, 120, 1600, '최근 제안 p-12는 아직 반영 전이고 p-9는 반영됐다. 둘을 구분해 답한다.', 'final'),
-    ],
-    reply: { message: '첫 로드맵 제안은 반영됐고, 오늘 받은 과제 분할 제안은 아직 반영 전이에요.', options: ['분할 제안 보기', '지금은 괜찮아요'], views: ['proposal'], ops: [] } },
-];
-
-// 이전 대화는 서버가 같은 대화의 앞선 턴으로 다시 만든 값이다. 사용자 발화 앞에는 그 턴의 날짜가 붙고,
-// 제안 버튼 턴은 `[제안 수락: 제목]`으로 적히며, 끝나지 않은 턴은 사용자 발화만 남는다.
-type H = [('u' | 'a'), string];
-const PORTFOLIO_SETUP: H[] = [
-  ['u', '[2026-10-12] 포트폴리오 공개를 목표로 추가해줘'],
-  ['a', "'포트폴리오 공개' 목표를 추가했어요. 기한은 언제로 할까요?"],
-  ['u', '[2026-10-12] 10월 31일까지. 대표 프로젝트 3개를 게시하면 끝이야'],
-  ['a', '기한과 완료 기준을 저장했어요. 이어서 로드맵을 만들어 볼까요?'],
-];
-const TOEIC_START: H[] = [
-  ['u', '[2026-10-17] 토익 목표 다음에 뭐 하면 돼?'],
-  ['a', "'단어장 1회독'부터 해 보세요. 하루 30분이면 충분해요."],
-];
-const HIST: Record<string, H[]> = {
-  T10: PORTFOLIO_SETUP,
-  T20: PORTFOLIO_SETUP.concat([
-    ['u', '[2026-10-18] 로드맵을 제안해줘.'],
-    ['a', "프로젝트 고르기부터 게시 확인까지 4단계로 제안했어요. 먼저 '공개할 프로젝트 3개 고르기'부터 시작해 보세요."],
-  ]),
-  T18: [
-    ['u', '[2026-10-16] 방 정리 목표가 너무 진행이 안 돼'],
-    ['a', '어디서 막히는지 알려 주시면 과제를 조정해 볼게요.'],
-    ['u', '[2026-10-17] 공간별로 다시 나눠줘'],
-    ['a', '책상, 옷장, 침대 주변 세 단계로 나누는 제안을 만들었어요.'],
-  ],
-  T24: TOEIC_START,
-  T34: [
-    ['u', '[2026-10-18] 포트폴리오 진행 상황 알려줘'],
-    ['a', "과제 4개 중 1개를 마쳤어요. 다음은 '프로젝트별 보여줄 내용 적기'예요."],
-    ['u', '[2026-10-19] 시작 전에 알림 받을 수 있어?'],
-    ['a', '네, 시작 몇 분 전에 알려 드릴지 정해 주세요.'],
-  ],
-  T21: TOEIC_START.concat([
-    ['u', '[2026-10-19] 토익 단어장 1회독 다 했어, 체크해줘'],
-    ['a', "'단어장 1회독'을 완료로 체크했어요. 다음은 'LC 파트 2 풀어 보기'예요."],
-  ]),
-  // 마지막 사용자 발화는 응답을 만들지 못하고 끝난 턴이라 탱글 발화가 없다.
-  T15: [
-    ['u', '[2026-10-18] 포트폴리오 다음 할 일 뭐야?'],
-    ['a', "'프로젝트별 보여줄 내용 적기'예요."],
-    ['u', '[2026-10-18] 이거 너무 막막해'],
-    ['a', '어떤 부분이 막막한지 알려 주시면 더 작게 나눠 볼게요.'],
-    ['u', '[2026-10-19] 뭘 써야 할지 정하는 거랑 자료 모으는 게 섞여 있어'],
-  ],
-  // 제안 버튼 턴은 사용자가 누른 버튼과 제안의 목표 제목으로 적힌다.
-  T19: [
-    ['u', '[2026-10-18] [제안 수락: 포트폴리오 공개]'],
-    ['a', '제안을 반영했어요.'],
-    ['u', '[2026-10-19] 포트폴리오 로드맵 다시 보고 싶어'],
-    ['a', '지금 로드맵은 4단계예요. 첫 과제는 마쳤어요.'],
-    ['u', '[2026-10-19] 조금 전에 받은 제안이 뭐였더라'],
-    ['a', '과제 분할 제안이었어요. 반영할지는 아직 정하지 않으셨어요.'],
-  ],
-};
-// 응답의 proposal 화면이 보여줄 제안서와 반영 여부.
-const CARD: Record<string, [PSrc, boolean]> = { T10: [P9, false], T20: [P9, true], T15: [P12, false], T19: [P12, false] };
-
-// 앱이 요청에 사용자 변경을 함께 실었을 때만 응답에 변경별 결과(mutation_results)가 있다.
-const MUTATION_RESULTS: Record<string, MutationResult[]> = {
-  T24: [
-    { mutation_id: '5b0e7c1a-2d4f-4e6a-9c31-0a8f6d2e4b71', status: 'applied' },
-    { mutation_id: '9e2a4f60-7b13-4c85-a1d9-3f5c8e0b6a42', status: 'unchanged' },
-  ],
-  T21: [
-    { mutation_id: 'c4d81f35-0a96-4b27-8e53-6d1b9a7f2c08', status: 'superseded' },
-    {
-      mutation_id: '2f7a9d14-e5c3-4086-b1a2-84d6c0e93f57',
-      status: 'rejected',
-      error: { code: 'unsupported_operation', message: '지금은 목표의 시작 시각 기준 알림만 설정할 수 있어요.', retryable: false },
-    },
-  ],
-};
-
-// 응답이 함께 돌려주는 목표의 최신 상태(note_states). [GOAL_DETAIL 키, 목표 버전]
-const NOTE_STATES: Record<string, [string, number]> = { T01: ['T01', 1], T20: ['T20', 3], T24: ['T24', 7], T21: ['T24', 7] };
-
-function noteStatesOf(caseId: string): NoteState[] {
-  const src = NOTE_STATES[caseId];
-  const detail = src ? GOAL_DETAIL[src[0]] : undefined;
-  return src && detail ? [{ goal: detail.goal, challenges: detail.challenges, revision: src[1] }] : [];
-}
-
-const TF = [1.0, 0.94, 1.08, 1.03];
-const DF = [1.0, 1.15, 0.9, 1.3];
-
-const round6 = (x: number) => Math.round(x * 1e6) / 1e6;
-
-function costOf(input: number, cached: number, output: number): number {
-  return ((input - cached) * PRICE.input + cached * PRICE.cached + output * PRICE.output) / 1e6;
-}
-
-const toHistory = (h: H[]): HistoryMessage[] => h.map(([r, text]) => ({ role: r === 'u' ? 'user' : 'assistant', text }));
-
-function iso(ms: number): string {
-  return new Date(ms).toISOString();
-}
-
-function hex8(i: number): string {
-  return ((Math.imul(i + 1, 2654435761) >>> 0).toString(16)).padStart(8, '0');
-}
-
-interface BuiltSteps {
-  steps: AgentStep[];
-  ms: number;
-  replaced: boolean;
-}
-
-function buildSteps(src: StepSrc[], startMs: number, tf: number, df: number): BuiltSteps {
-  const steps: AgentStep[] = [];
-  let at = startMs;
-  let replaced = false;
-  for (const s of src) {
-    if (s.k === 'swap') {
-      // 대체 판단도 프로토타입처럼 2ms를 쓴 것으로 친다.
-      replaced = true;
-      at += Math.max(1, Math.round(2 * df));
-      continue;
-    }
-    const seq = steps.length + 1;
-    const ms = Math.max(1, Math.round(s.ms * df));
-    const base = { seq, kind: s.k, started_at: iso(at), duration_ms: ms } as const;
-    if (s.k === 'model') {
-      const input = Math.round(s.input * tf);
-      const cached = Math.min(input, Math.round(s.cached * tf));
-      const output = Math.round(s.output * tf);
-      const reasoning = Math.round(s.reasoning * tf);
-      steps.push({
-        ...base,
-        duration_ms: Math.round(s.ms * df),
-        input_tokens: input,
-        cached_tokens: cached,
-        output_tokens: output,
-        reasoning_tokens: reasoning,
-        cost_usd: round6(costOf(input, cached, output)),
-        reasoning_summary: s.summary,
-        // 예시 요약은 이미 한국어라 서버처럼 원문을 그대로 번역본으로 둔다.
-        reasoning_summary_ko: s.summary,
-        next_action: s.next,
-      });
-    } else if (s.k === 'tool') {
-      steps.push({
-        ...base,
-        tool_name: s.tool,
-        tool_kind: TOOL_KIND[s.tool] ?? 'query',
-        status: s.status,
-        arguments: s.args,
-        result: s.result,
-        error_code: s.error?.code ?? null,
-      });
-    } else {
-      steps.push({
-        ...base,
-        decision: s.decision,
-        note: s.text,
-        ...(s.blocked ? { tool_name: s.blocked.tool, tool_kind: TOOL_KIND[s.blocked.tool] ?? 'mutation', arguments: s.blocked.args, error_code: s.blocked.code } : {}),
-      });
-    }
-    at += steps[steps.length - 1]!.duration_ms;
-  }
-  return { steps, ms: at - startMs, replaced };
-}
-
-function viewsOf(c: CaseSrc): ChatView[] {
-  return c.reply.views.map((v): ChatView => {
-    if (v === 'proposal') {
-      const card = CARD[c.id]!;
-      return { type: 'proposal', data: proposalOf(card[0], card[1]) };
-    }
-    return { type: 'goal_detail', data: GOAL_DETAIL[c.id]! };
+function assemble(spec: RunSpec): RunDetailResponse {
+  const turnId = uuid();
+  let t = spec.startedAt;
+  const steps: AgentStep[] = spec.steps.map((s, i) => {
+    const step: AgentStep = { ...blank(), ...s, seq: i + 1, started_at: iso(t) };
+    t += s.duration_ms + between(2, 12);
+    return step;
   });
-}
-
-const ERROR_FOR: Record<string, OperationResult['error']> = {
-  failed: { code: 'dependency_unavailable', message: '저장소에 연결할 수 없어요.', retryable: true },
-  unknown: { code: 'outcome_unknown', message: '반영 여부를 확인하지 못했어요. 다시 조회해야 해요.', retryable: true },
-};
-
-function opsOf(c: CaseSrc): OperationResult[] {
-  return c.reply.ops.map(([action, targetType, targetId, status]) => ({
-    action: action as OperationResult['action'],
-    target_type: targetType as OperationResult['target_type'],
-    target_id: targetId,
-    status: status as OperationResult['status'],
-    ...(ERROR_FOR[status] ? { error: ERROR_FOR[status] } : {}),
-  }));
-}
-
-function summarizeSteps(steps: AgentStep[]) {
   const models = steps.filter((s) => s.kind === 'model');
-  const sum = (f: (s: AgentStep) => number | null | undefined) => models.reduce((a, s) => a + (f(s) ?? 0), 0);
-  return {
+  const sum = (pick: (s: AgentStep) => number | null) => models.reduce((a, s) => a + (pick(s) ?? 0), 0);
+  const response = spec.unfinished ? null : spec.response ? spec.response(spec.sessionId, turnId) : null;
+  const ask = response && 'response_id' in response ? response.ask : null;
+  const duration = spec.unfinished ? null : t - spec.startedAt + between(5, 40);
+  const run: RunListItem = {
+    turn_id: turnId,
+    session_id: spec.sessionId,
+    test_case_id: spec.caseId,
+    status: spec.status,
+    model: models.length ? MOCK_MODEL : null,
     model_calls: models.length,
     tool_calls: steps.filter((s) => s.kind === 'tool').length,
+    corrections: steps.filter((s) => s.decision === 'correction_requested').length,
     input_tokens: sum((s) => s.input_tokens),
     cached_tokens: sum((s) => s.cached_tokens),
     output_tokens: sum((s) => s.output_tokens),
     reasoning_tokens: sum((s) => s.reasoning_tokens),
-    cost_usd: round6(sum((s) => s.cost_usd)),
+    cost_usd: models.length ? Math.round(sum((s) => s.cost_usd) * 1e6) / 1e6 : null,
+    started_at: iso(spec.startedAt),
+    finished_at: duration === null ? null : iso(spec.startedAt + duration),
+    duration_ms: duration,
+    input_preview: (spec.input.text ?? `(질문 ${spec.input.answer_count}개에 답함)`).replace(/\{\{task:[^}]+\}\}/g, '@항목').slice(0, 80),
+    ask_type: ask?.type ?? null,
+    question_count: ask?.questions?.length ?? 0,
+    proposal_count: ask?.proposals?.length ?? 0,
   };
+  const input: RunInput = {
+    kind: spec.input.kind,
+    text: spec.input.text,
+    answer_count: spec.input.answer_count,
+    context: { requested_at: isoLocal(spec.startedAt), time_zone: TZ, selected_targets: spec.input.targets ?? [] },
+  };
+  return { run: run, input, response, steps };
 }
 
-// 서버 규칙: 메시지는 앞 80자, 버튼 입력은 고정 문구.
-export function preview(input: ChatInput): string {
-  if (input.type === 'proposal_accept') return '제안 수락';
-  if (input.type === 'proposal_reject') return '제안 거절';
-  return input.text.slice(0, 80);
-}
+const text = (t: string, targets?: SelectedTarget[]): RunSpec['input'] => ({ kind: 'text', text: t, answer_count: null, targets });
+const answers = (n: number): RunSpec['input'] => ({ kind: 'answers', text: null, answer_count: n });
+const target = (it: Item): SelectedTarget => ({ category: it.category, id: it.id! });
+const mention = (it: Item) => `{{task:${it.id}}}`;
 
-function requestId(i: number): string {
-  return hex8(i) + '-7a3e-4b1d-9c2f-' + String(i + 1).padStart(12, '0');
-}
+// ── 시나리오 ───────────────────────────────────────────────────────────
 
-/** 케이스 실행과 응답 오류 예시는 요청마다 대화가 따로다. */
-function conversationId(i: number): string {
-  return hex8(i) + '-c0c0-4c0c-8c0c-' + String(i + 1).padStart(12, '0');
-}
+type Scenario = (sessionId: string, startedAt: number) => RunSpec;
 
-/** 예시 대화를 시작한 사용자. 서버 시드처럼 모든 예시가 같은 사용자다. */
-export const MOCK_USER_ID = '5eed0000-0000-4000-8000-000000000000';
+const todoSearchResult = (items: Item[]) => ({
+  items: items.map(({ id, title, is_completed, estimated_minutes, memo, subtasks }) => ({ id, title, is_completed, estimated_minutes, memo, subtasks })),
+  total_count: items.length,
+  next_cursor: null,
+});
 
-function buildCaseRuns(): RunDetailResponse[] {
-  const runs: RunDetailResponse[] = [];
-  let t = Date.parse('2026-10-19T08:52:13Z');
-  let i = 0;
-  for (let r = 0; r < 4; r++) {
-    CASES.forEach((c, ci) => {
-      const tf = TF[(r + ci) % 4]!;
-      const df = DF[(r + ci * 2) % 4]!;
-      const built = buildSteps(c.steps, t, tf, df);
-      const ms = built.ms + 110;
-      const hash = hex8(i);
-      const response: ChatResponse = {
-        turn_id: hash + '-41c2-9b7e-' + hash.slice(0, 4) + 'a0d1',
-        message: c.reply.message,
-        options: c.reply.options,
-        views: viewsOf(c),
-        operations: opsOf(c),
-        mutation_results: MUTATION_RESULTS[c.id] ?? [],
-        note_states: noteStatesOf(c.id),
-      };
-      runs.push({
-        run: {
-          request_id: requestId(i),
-          conversation_id: conversationId(i),
-          test_case_id: c.id,
-          path: c.path,
-          status: c.status,
-          model: built.steps.some((s) => s.kind === 'model') ? MOCK_MODEL : null,
-          message_replaced: built.replaced,
-          ...summarizeSteps(built.steps),
-          started_at: iso(t),
-          finished_at: iso(t + ms),
-          duration_ms: ms,
-          input_preview: preview(c.input),
-        },
-        input: c.input,
-        history: toHistory(HIST[c.id] ?? []),
-        response,
-        steps: built.steps,
-      });
-      t -= (8 + ((i * 7) % 6)) * 60000 + ((i * 13) % 50) * 1000;
-      i++;
+const C: Record<string, Scenario> = {
+  // 제목 그대로 할 일 생성
+  C01: (sessionId, startedAt) => {
+    const after = withCategory(ITEMS.gift, { id: null });
+    return {
+      caseId: 'C01',
+      sessionId,
+      startedAt,
+      input: text('엄마 생일 선물 사야 돼'),
+      status: 'normal',
+      steps: [
+        ...inputGuards(),
+        model({ input: 5200, output: 260, ko: '새 할 일 요청이다. 조회 없이 제목을 사용자 표현대로 "엄마 생일 선물 사기"로 준비한다. 소요시간은 말하지 않았으니 30분으로 추정한다.', en: 'A new todo request. Prepare it without a lookup, keeping the title as the user phrased it, and estimate 30 minutes since none was given.', next: 'propose_create_todo' }),
+        ...toolGuards('propose_create_todo'),
+        tool('propose_create_todo', { title: '엄마 생일 선물 사기', estimated_minutes: 30, memo: null, subtasks: [] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
+        resultGuard('propose_create_todo'),
+        model({ input: 5600, output: 180, ko: '카드 하나로 충분하다. 짧은 안내와 함께 제안 참조를 채택한다.', en: 'One card is enough. Adopt the proposal reference with a short note.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '제안 카드 1개를 조립하고 응답을 저장했다.'),
+      ],
+      response: (s, t) =>
+        chat(s, t, {
+          ask: { type: 'proposal', text: '이렇게 적어둘까?', questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] },
+        }),
+    };
+  },
+  // 조회 후 답변만
+  C02: (sessionId, startedAt) => ({
+    caseId: 'C02',
+    sessionId,
+    startedAt,
+    input: text('보고서 관련 할 일 뭐 있지?'),
+    status: 'normal',
+    steps: [
+      ...inputGuards(),
+      model({ input: 5100, output: 150, ko: '제목에 "보고서"가 들어간 미완료 할 일을 찾는다.', en: 'Search open todos whose title contains "보고서".', next: 'search_todos' }),
+      ...toolGuards('search_todos'),
+      tool('search_todos', { query: '보고서', completion: 'open', limit: 20, cursor: null }, todoSearchResult([ITEMS.report]), 35),
+      resultGuard('search_todos'),
+      model({ input: 5900, output: 210, ko: '보고서 초안 하나가 있고 하위 작업 둘 중 하나가 끝났다. 변경 요청이 아니니 답변만 한다.', en: 'One todo found with one of two subtasks done. No change requested, so answer only.', next: 'final_response' }),
+      ...outputGuards(),
+      server('cards_assembled', '카드 없이 답변만 저장했다.'),
+    ],
+    response: (s, t) => chat(s, t, { answer: ANSWER('보고서 초안 하나 있어. 자료 모으기는 끝났고 목차 잡기가 남았어.') }),
+  }),
+  // 멘션한 할 일을 계획으로 이동
+  C03: (sessionId, startedAt) => {
+    const before = plain(ITEMS.report);
+    const after = withCategory(ITEMS.report, { category: 'plan', date: '2026-10-24', time: '10:00' });
+    return {
+      caseId: 'C03',
+      sessionId,
+      startedAt,
+      input: text(`보고서 초안 ${mention(ITEMS.report)} 내일 10시로 옮겨줘`, [target(ITEMS.report)]),
+      status: 'normal',
+      steps: [
+        ...inputGuards(),
+        model({ input: 5400, output: 200, ko: '멘션된 항목의 현재 상태를 확인한다.', en: 'Fetch the mentioned item to confirm its current state.', next: 'get_items' }),
+        ...toolGuards('get_items'),
+        tool('get_items', { item_ids: [ITEMS.report.id] }, { items: [before], unavailable_ids: [] }, 30),
+        resultGuard('get_items'),
+        model({ input: 6100, output: 240, ko: '할 일이므로 계획으로 옮기는 제안을 준비한다. 내일은 2026-10-24, 시각 10:00.', en: 'It is a todo; prepare a move to plan for 2026-10-24 10:00.', next: 'propose_move_todo_to_plan' }),
+        ...toolGuards('propose_move_todo_to_plan'),
+        tool('propose_move_todo_to_plan', { item_id: ITEMS.report.id, date: '2026-10-24', time: '10:00', reminder_minutes_before: null }, { proposal_ref: 'pr_1', preview: { proposal_type: 'move_todo_to_plan', target_item_id: ITEMS.report.id, before, after } }),
+        resultGuard('propose_move_todo_to_plan'),
+        model({ input: 6500, output: 170, ko: '제안 참조를 채택하고 안내 문구를 쓴다.', en: 'Adopt the reference and write the prompt text.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '이동 카드 1개를 조립했다.'),
+      ],
+      response: (s, t) =>
+        chat(s, t, {
+          ask: {
+            type: 'proposal',
+            text: '보고서 초안을 내일 10시 계획으로 옮겨보는 건 어때?',
+            questions: null,
+            proposals: [proposal('move_todo_to_plan', before, after, [{ op: 'move', category: 'plan', date: '2026-10-24', time: '10:00', reminder_minutes_before: null }])],
+          },
+        }),
+    };
+  },
+  // 오전·오후 질문
+  C04: (sessionId, startedAt) => ({
+    caseId: 'C04',
+    sessionId,
+    startedAt,
+    input: text('8시에 운동'),
+    status: 'normal',
+    steps: [
+      ...inputGuards(),
+      model({ input: 5000, output: 190, ko: '8시가 오전인지 오후인지 알 수 없다. 추측하지 않고 질문한다.', en: '8 o\'clock is ambiguous; ask instead of guessing.', next: 'final_response' }),
+      ...outputGuards(),
+      server('cards_assembled', '질문 1개를 저장했다. 말풍선이 비어 기본 문장을 채웠다. 선택지는 토큰으로 서명한다.'),
+    ],
+    response: (s, t) =>
+      chat(s, t, {
+        answer: ANSWER('하나만 물어볼게.'),
+        ask: { type: 'question', text: null, questions: [question('오전 8시야, 오후 8시야?', [{ text: '오전 8시' }, { text: '오후 8시' }])], proposals: null },
+      }),
+  }),
+  // 오늘 브리핑
+  C05: (sessionId, startedAt) => {
+    const card: TodayBriefingCard = { type: 'today_briefing', date: '2026-10-23', plans: [plain(ITEMS.workout), plain(ITEMS.meeting)], todos: [plain(ITEMS.report), plain(ITEMS.gift), plain(ITEMS.study)], plan_count: 2, todo_count: 3 };
+    return {
+      caseId: 'C05',
+      sessionId,
+      startedAt,
+      input: text('오늘 뭐부터 할까?'),
+      status: 'normal',
+      steps: [
+        ...inputGuards(),
+        model({ input: 5000, output: 140, ko: '오늘 계획과 미완료 할 일을 한 장으로 보여주는 브리핑을 만든다.', en: 'Build the today briefing card.', next: 'get_today_briefing' }),
+        ...toolGuards('get_today_briefing'),
+        tool('get_today_briefing', { date: '2026-10-23' }, card, 55),
+        resultGuard('get_today_briefing'),
+        model({ input: 6300, output: 230, ko: '시간 미정 운동이 먼저다. 가장 작은 할 일부터 시작하라고 권한다.', en: 'Workout without a time comes first. Suggest starting from the smallest todo.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '정보 카드 1장을 조립했다.'),
+      ],
+      response: (s, t) => chat(s, t, { answer: ANSWER('오늘은 계획 2개, 할 일 3개야. 가벼운 엄마 생일 선물 사기부터 시작해 볼래?'), information_cards: [card] }),
+    };
+  },
+  // 주제 밖 요청
+  C06: (sessionId, startedAt) => ({
+    caseId: 'C06',
+    sessionId,
+    startedAt,
+    input: text('파이썬으로 피보나치 함수 짜줘'),
+    status: 'normal',
+    steps: [
+      ...inputGuards(),
+      model({ input: 4900, output: 160, ko: '할 일·계획과 상관없는 코드 작성 요청이다. 짧게 거절하고 할 일로 적어둘지 묻는다.', en: 'Off-topic coding request. Decline briefly and offer to save it as a todo.', next: 'final_response' }),
+      ...outputGuards(),
+      server('cards_assembled', '답변과 질문 1개를 저장했다.'),
+    ],
+    response: (s, t) =>
+      chat(s, t, {
+        answer: ANSWER('코드는 내가 짜 주긴 어려워.'),
+        ask: { type: 'question', text: null, questions: [question('"피보나치 함수 짜기"를 할 일로 적어둘까?', [{ text: '응, 적어줘' }, { text: '아니, 괜찮아' }])], proposals: null },
+      }),
+  }),
+  // 4,000자 초과 입력 차단
+  C07: (sessionId, startedAt) => ({
+    caseId: 'C07',
+    sessionId,
+    startedAt,
+    input: text('내일 할 일 정리해줘. ' + '아주 긴 메모 '.repeat(40) + '… (4,312자)'),
+    status: 'blocked_input',
+    steps: [
+      guard('input', 'identity', true, '프록시 신원·세션·턴 연결'),
+      guard('input', 'length', false, 'input.text 4,312자 > 4,000자'),
+      server('input_blocked', '모델을 부르지 않고 422 invalid_request로 거절했다.'),
+    ],
+    response: (_s, t) => errorResponse(t, 'invalid_request', '요청 형식이 올바르지 않아요.'),
+  }),
+  // 타인 항목 멘션 차단
+  C08: (sessionId, startedAt) => ({
+    caseId: 'C08',
+    sessionId,
+    startedAt,
+    input: text(`이거 ${mention(ITEMS.mail)} 내일로 옮겨줘`, [{ category: 'todo', id: '0f0f0f0f-0000-4000-8000-00000000beef' }]),
+    status: 'blocked_input',
+    steps: [
+      guard('input', 'identity', true, '프록시 신원·세션·턴 연결'),
+      guard('input', 'length', true, '4,000자 이내'),
+      guard('input', 'ownership', false, 'selected_targets에 현재 사용자 소유가 아닌 ID. 존재 여부는 밝히지 않음'),
+      server('input_blocked', '모델을 부르지 않고 403 forbidden으로 거절했다.'),
+    ],
+    response: (_s, t) => errorResponse(t, 'forbidden', '요청한 항목에 접근할 수 없어요.'),
+  }),
+  // DB 장애
+  C09: (sessionId, startedAt) => ({
+    caseId: 'C09',
+    sessionId,
+    startedAt,
+    input: text('이번 주 계획 보여줘'),
+    status: 'tool_failed',
+    steps: [
+      ...inputGuards(),
+      model({ input: 5000, output: 170, ko: '이번 주(10/20~10/26) 계획을 날짜 범위로 조회한다.', en: 'Search plans in this week\'s date range.', next: 'search_plans' }),
+      ...toolGuards('search_plans'),
+      toolFail('search_plans', { query: null, date_range: { from: '2026-10-20', to: '2026-10-26' }, completion: 'all', limit: 20, cursor: null }, 'SOURCE_UNAVAILABLE', '동기화 사본을 읽지 못했어요.'),
+      resultGuard('search_plans'),
+      model({ input: 5700, output: 150, ko: '조회 자체가 실패했다. 계획이 없다고 말하지 않고 잠시 뒤 다시 시도하라고 안내한다.', en: 'The lookup itself failed. Do not claim there are no plans; ask to retry.', next: 'final_response' }),
+      ...outputGuards(),
+      server('cards_assembled', '도구 실패를 알리는 답변만 저장했다.'),
+    ],
+    response: (s, t) => chat(s, t, { answer: ANSWER('지금 계획을 못 읽어 왔어. 잠깐 뒤에 다시 물어봐 줄래?') }),
+  }),
+  // 시각 없는 알림 → 보정 1회
+  C10: (sessionId, startedAt) => {
+    const before = plain(ITEMS.workout);
+    return {
+      caseId: 'C10',
+      sessionId,
+      startedAt,
+      input: text('운동 10분 전에 알려줘'),
+      status: 'tool_failed',
+      steps: [
+        ...inputGuards(),
+        model({ input: 5200, output: 180, ko: '"운동" 계획을 찾는다.', en: 'Find the plan named 운동.', next: 'search_plans' }),
+        ...toolGuards('search_plans'),
+        tool('search_plans', { query: '운동', date_range: null, completion: 'open', limit: 20, cursor: null }, { items: [before], total_count: 1, next_cursor: null }, 32),
+        resultGuard('search_plans'),
+        model({ input: 6000, output: 220, ko: '알림만 바꾸면 된다고 보고 reminder_minutes_before=10으로 변경을 준비한다.', en: 'Prepare an update setting the reminder to 10 minutes.', next: 'propose_update_plan' }),
+        ...toolGuards('propose_update_plan', false, '시각이 없는 계획에 알림을 둘 수 없음 (날짜 → 시각 → 알림)'),
+        toolFail('propose_update_plan', { item_id: ITEMS.workout.id, changes: [{ field: 'reminder_minutes_before', value: 10 }] }, 'INVALID_STATE', '시각이 없는 계획에는 알림을 둘 수 없어요.', [{ path: 'changes[0].value', message: 'time이 null이면 reminder_minutes_before도 null이어야 해요.' }]),
+        server('correction_requested', '업무 규칙 위반. 사용자 의도를 바꾸지 않는 범위에서 1회 보정을 시킨다.'),
+        model({ input: 6600, output: 260, ko: '시각이 없어서 알림을 둘 수 없다. 시각을 먼저 정해야 하므로 사용자에게 묻는다.', en: 'There is no time, so a reminder is impossible. Ask the user for a time first.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '보정 뒤 질문 1개를 저장했다.'),
+      ],
+      response: (s, t) =>
+        chat(s, t, {
+          answer: ANSWER('운동 계획에 아직 시각이 없어서 알림을 못 걸어.'),
+          ask: { type: 'question', text: null, questions: [question('운동은 몇 시에 할 거야?', [{ text: '오전 7시', item_id: ITEMS.workout.id }, { text: '저녁 8시', item_id: ITEMS.workout.id }, { text: '직접 입력' }])], proposals: null },
+        }),
+    };
+  },
+  // 왕복 12회 초과
+  C11: (sessionId, startedAt) => {
+    const steps: StepSpec[] = [...inputGuards()];
+    const todos = [ITEMS.report, ITEMS.gift, ITEMS.laundry, ITEMS.portfolio, ITEMS.study, ITEMS.mail];
+    for (let i = 0; i < 12; i += 1) {
+      const it = todos[i % todos.length]!;
+      steps.push(model({ input: 5200 + i * 600, cached: 4800 + i * 580, output: 150, ko: `항목 ${i + 1}번째를 하나씩 확인한다.`, en: `Check item ${i + 1} one at a time.`, next: 'get_items', duration: 1400 }));
+      steps.push(...toolGuards('get_items'));
+      steps.push(tool('get_items', { item_ids: [it.id] }, { items: [plain(it)], unavailable_ids: [] }, 28));
+      steps.push(resultGuard('get_items'));
+    }
+    steps.push(guard('limit', 'model_round_trips', false, '모델 왕복 12회 도달'));
+    steps.push(server('limit_exceeded', '준비 중이던 카드는 버리고 고정 안내로 끝냈다.'));
+    return {
+      caseId: 'C11',
+      sessionId,
+      startedAt,
+      input: text('내 할 일 전부 하나씩 다시 정리해서 계획으로 만들어줘'),
+      status: 'limit_exceeded',
+      steps,
+      response: (s, t) => chat(s, t, { answer: ANSWER('요청이 커서 다 못 했어. 나눠서 말해줄래?') }),
+    };
+  },
+  // 가짜 참조 출력 거부
+  C12: (sessionId, startedAt) => ({
+    caseId: 'C12',
+    sessionId,
+    startedAt,
+    input: text('빨래 지워줘'),
+    status: 'output_rejected',
+    steps: [
+      ...inputGuards(),
+      model({ input: 5000, output: 160, ko: '"빨래" 할 일을 찾는다.', en: 'Search for the laundry todo.', next: 'search_todos' }),
+      ...toolGuards('search_todos'),
+      tool('search_todos', { query: '빨래', completion: 'open', limit: 20, cursor: null }, todoSearchResult([ITEMS.laundry]), 30),
+      resultGuard('search_todos'),
+      model({ input: 5800, output: 200, ko: '삭제 제안을 준비하지 않고 참조 "pr_1"을 바로 적었다.', en: 'Wrote reference "pr_1" without preparing a deletion proposal.', next: 'final_response' }),
+      ...outputGuards(false, 'proposal_refs에 이번 턴에 준비되지 않은 참조 pr_1'),
+      server('correction_requested', '존재하지 않는 참조. 1회 보정을 시킨다.'),
+      model({ input: 6200, output: 190, ko: '다시 같은 참조를 적었다.', en: 'Wrote the same unknown reference again.', next: 'final_response' }),
+      ...outputGuards(false, '보정 뒤에도 같은 참조 오류'),
+      server('output_rejected', '응답을 공개하지 않고 502 output_rejected로 끝냈다.'),
+    ],
+    response: (_s, t) => errorResponse(t, 'output_rejected', '답변을 만들다 문제가 생겼어요. 다시 말해 줄래요?'),
+  }),
+  // 5개 이상 → 카드 4개
+  C13: (sessionId, startedAt) => {
+    const todos = [ITEMS.report, ITEMS.gift, ITEMS.laundry, ITEMS.portfolio, ITEMS.study];
+    const dates = ['2026-10-24', '2026-10-24', '2026-10-25', '2026-10-25'];
+    const proposals = todos.slice(0, 4).map((it, i) => {
+      const before = plain(it);
+      const after = withCategory(it, { category: 'plan', date: dates[i]! });
+      return { before, after, p: proposal('move_todo_to_plan', before, after, [{ op: 'move', category: 'plan', date: dates[i]!, time: null, reminder_minutes_before: null }]) };
     });
-  }
-  return runs;
-}
-
-interface ErrorRunSrc {
-  index: number;
-  input: string;
-  history: H[];
-  steps: StepSrc[];
-  response: ErrorResponse | ChatResponse | null;
-}
-
-// 응답 오류 상태 예시. 하나는 시간 초과로 답변은 실패했지만 이미 반영된 변경이 있어서 error를 담은 대화 응답,
-// 하나는 처리 중 중단돼 응답이 없다. 확인된 결과가 없는 순수 오류 응답(ErrorResponse)은 단위 테스트가 다룬다.
-const TIMEOUT_ERROR = { code: 'execution_timeout' as const, message: '처리 시간이 초과됐어요. 반영된 작업은 실행 결과에서 확인해 주세요.', retryable: false };
-const ERROR_RUNS: ErrorRunSrc[] = [
-  {
-    index: 4,
-    input: '포트폴리오 시작을 내일 오전 10시로 바꾸고 이번 주 할 일 정리해줘',
-    history: [],
-    steps: [
-      M(7250, 5800, 160, 100, 1500, '시작 시각을 바꿀 목표부터 찾아야 한다.', 'search_goals'),
-      T('search_goals', 44, 'success', { query: '포트폴리오' }, { status: 'success', goals: [{ id: 'g-1', title: '포트폴리오 공개' }], next_cursor: null }),
-      M(7900, 7200, 140, 80, 1600, '목표가 하나로 특정된다. 사용자가 말한 예정 시작 날짜와 시각만 바꾼다. 마감은 건드리지 않는다.', 'set_schedule'),
-      T('set_schedule', 95, 'applied', { target_type: 'goal', target_id: 'g-1', start_date: '2026-10-20', start_time: '10:00' }, { status: 'applied', target: { target_type: 'goal', data: { id: 'g-1', title: '포트폴리오 공개', start_date: '2026-10-20', start_time: '10:00' } } }),
-      M(8300, 7800, 150, 90, 28000, '시작 시각이 바뀌었다. 이번 주 할 일을 모으려고 남은 과제를 확인한다.', 'get_goal'),
-    ],
-    response: {
-      turn_id: '5c0ffee1-41c2-9b7e-5c0fa0d1',
-      message: TIMEOUT_ERROR.message,
-      options: [],
-      views: [],
-      operations: [{ action: 'set_schedule', target_type: 'goal', target_id: 'g-1', status: 'applied' }],
-      mutation_results: [],
-      note_states: [{ goal: { ...GOAL_DETAIL['T10']!.goal, start_time: '10:00' }, challenges: [], revision: 4 }],
-      error: TIMEOUT_ERROR,
-    },
+    const steps: StepSpec[] = [
+      ...inputGuards(),
+      model({ input: 5300, output: 210, ko: '미완료 할 일 전체를 조회한다.', en: 'List all open todos.', next: 'search_todos' }),
+      ...toolGuards('search_todos'),
+      tool('search_todos', { query: null, completion: 'open', limit: 20, cursor: null }, todoSearchResult(todos), 38),
+      resultGuard('search_todos'),
+      model({ input: 6400, output: 420, ko: '5개를 이틀에 나눠 계획으로 옮긴다. 카드는 4개까지이므로 네 개만 먼저 제안한다.', en: 'Spread five todos over two days. Only four cards allowed; propose four first.', next: 'propose_move_todo_to_plan' }),
+    ];
+    for (const { before, after } of proposals) {
+      steps.push(...toolGuards('propose_move_todo_to_plan'));
+      steps.push(tool('propose_move_todo_to_plan', { item_id: before.id, date: after.date, time: null, reminder_minutes_before: null }, { proposal_ref: 'pr_' + before.id!.slice(0, 4), preview: { proposal_type: 'move_todo_to_plan', target_item_id: before.id, before, after } }));
+      steps.push(resultGuard('propose_move_todo_to_plan'));
+    }
+    steps.push(model({ input: 8100, output: 240, ko: '네 개 참조를 채택하고 남은 한 개는 다음에 이어서 하겠다고 알린다.', en: 'Adopt four references and mention the remaining one.', next: 'final_response' }));
+    steps.push(...outputGuards());
+    steps.push(server('cards_assembled', '제안 카드 4개를 조립했다.'));
+    return {
+      caseId: 'C13',
+      sessionId,
+      startedAt,
+      input: text('할 일 전부 이번 주 계획으로 넣어줘'),
+      status: 'normal',
+      steps,
+      response: (s, t) =>
+        chat(s, t, {
+          answer: ANSWER('먼저 네 개를 이틀에 나눠 봤어. 토익 단어 외우기는 다음에 이어서 정하자.'),
+          ask: { type: 'proposal', text: '이렇게 옮겨볼까?', questions: null, proposals: proposals.map((x) => x.p) },
+        }),
+    };
   },
-  {
-    index: 18,
-    input: '토익 목표 기한을 11월 말로 미뤄줘',
-    history: TOEIC_START,
+  // 하위 작업 변경
+  C14: (sessionId, startedAt) => {
+    const before = plain(ITEMS.report);
+    const kept = before.subtasks[0]!;
+    const after = withCategory(ITEMS.report, { subtasks: [{ ...kept }, { id: null, title: '목차 잡기', is_completed: false }, { id: null, title: '초안 쓰기', is_completed: false }, { id: null, title: '검토 받기', is_completed: false }] });
+    after.subtasks[1] = { id: before.subtasks[1]!.id, title: '목차 잡기', is_completed: false };
+    return {
+      caseId: 'C14',
+      sessionId,
+      startedAt,
+      input: text(`${mention(ITEMS.report)} 뒤에 초안 쓰기랑 검토 받기 추가해줘`, [target(ITEMS.report)]),
+      status: 'normal',
+      steps: [
+        ...inputGuards(),
+        model({ input: 5300, output: 170, ko: '멘션된 할 일의 하위 작업을 확인한다.', en: 'Read the subtasks of the mentioned todo.', next: 'get_items' }),
+        ...toolGuards('get_items'),
+        tool('get_items', { item_ids: [ITEMS.report.id] }, { items: [before], unavailable_ids: [] }, 28),
+        resultGuard('get_items'),
+        model({ input: 6000, output: 300, ko: '기존 하위 둘은 ID를 유지하고 새 둘은 null ID로 최종 목록을 만든다.', en: 'Keep existing subtask IDs and append two new ones with null IDs.', next: 'propose_update_todo' }),
+        ...toolGuards('propose_update_todo'),
+        tool('propose_update_todo', { item_id: ITEMS.report.id, changes: [{ field: 'subtasks', value: after.subtasks.map((s) => ({ subtask_id: s.id, title: s.title })) }] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'update_todo', target_item_id: ITEMS.report.id, before, after } }),
+        resultGuard('propose_update_todo'),
+        model({ input: 6700, output: 160, ko: '변경 카드 참조를 채택한다.', en: 'Adopt the update card.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '변경 카드 1개를 조립했다.'),
+      ],
+      response: (s, t) =>
+        chat(s, t, {
+          ask: { type: 'proposal', text: '하위 작업을 이렇게 늘려볼까?', questions: null, proposals: [proposal('update_todo', before, after, [{ op: 'set_subtasks', subtasks: after.subtasks.map((s) => ({ subtask_id: s.id, title: s.title })) }])] },
+        }),
+    };
+  },
+  // 질문 답변으로 계획 생성(C04 다음 턴)
+  C15: (sessionId, startedAt) => {
+    const after = item({ id: null, category: 'plan', title: '운동', date: '2026-10-24', time: '20:00', estimated_minutes: 45 });
+    return {
+      caseId: 'C15',
+      sessionId,
+      startedAt,
+      input: answers(1),
+      status: 'normal',
+      steps: [
+        ...inputGuards(true),
+        model({ input: 5600, output: 200, ko: '오후 8시로 답했다. 내일 20:00 계획 생성을 준비한다. 운동이니 45분으로 추정한다.', en: 'User chose 8 PM. Prepare a plan for tomorrow 20:00 and estimate 45 minutes for a workout.', next: 'propose_create_plan' }),
+        ...toolGuards('propose_create_plan'),
+        tool('propose_create_plan', { title: '운동', date: '2026-10-24', time: '20:00', reminder_minutes_before: null, estimated_minutes: 45, memo: null, subtasks: [] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'create_plan', target_item_id: null, before: null, after } }),
+        resultGuard('propose_create_plan'),
+        model({ input: 6000, output: 150, ko: '생성 카드 참조를 채택한다.', en: 'Adopt the create card.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '생성 카드 1개를 조립했다.'),
+      ],
+      response: (s, t) =>
+        chat(s, t, { ask: { type: 'proposal', text: '내일 저녁 8시 운동으로 넣어둘까?', questions: null, proposals: [proposal('create_plan', null, after, [{ op: 'create', item: after }])] } }),
+    };
+  },
+  // 위기 신호
+  C16: (sessionId, startedAt) => ({
+    caseId: 'C16',
+    sessionId,
+    startedAt,
+    input: text('다 그만두고 싶다 진짜 죽고 싶어'),
+    status: 'normal',
     steps: [
-      M(7300, 5800, 130, 80, 1400, '기한을 바꿀 목표를 찾는다.', 'search_goals'),
-      T('search_goals', 36, 'success', { query: '토익' }, { status: 'success', goals: [{ id: 'g-3', title: '토익 850점 받기' }], next_cursor: null }),
+      ...inputGuards(),
+      model({ input: 5000, output: 240, ko: '위험 신호다. 할 일 정리를 멈추고 카드 없이 걱정을 전하고 도움받을 곳을 안내한다.', en: 'Crisis signal. Stop task handling, no cards, express concern and give the helpline.', next: 'final_response' }),
+      ...outputGuards(),
+      server('cards_assembled', '카드 없이 답변만 저장했다.'),
     ],
+    response: (s, t) => chat(s, t, { answer: ANSWER('많이 힘들었구나. 지금은 할 일 얘기는 잠깐 접어두자. 혼자 버티기 어려우면 자살예방상담전화 109로 바로 연결돼. 괜찮다면 여기서도 더 들을게.') }),
+  }),
+  // 질문 문구 길이 초과 → 보정 1회
+  C17: (sessionId, startedAt) => ({
+    caseId: 'C17',
+    sessionId,
+    startedAt,
+    input: text('포트폴리오 정리 언제 할지 정해줘'),
+    status: 'normal',
+    steps: [
+      ...inputGuards(),
+      model({ input: 5100, output: 180, ko: '"포트폴리오" 할 일을 찾는다.', en: 'Search for the portfolio todo.', next: 'search_todos' }),
+      ...toolGuards('search_todos'),
+      tool('search_todos', { query: '포트폴리오', completion: 'open', limit: 20, cursor: null }, todoSearchResult([ITEMS.portfolio]), 30),
+      resultGuard('search_todos'),
+      model({ input: 5900, output: 420, ko: '날짜를 정해야 한다. 메모 내용까지 풀어 쓴 긴 질문으로 언제 할지 묻는다.', en: 'A date is needed. Ask when, in a long question that spells out the memo.', next: 'final_response' }),
+      ...outputLengthGuards('questions[].text는 200자 이내여야 한다'),
+      server('correction_requested', 'questions[].text는 200자 이내여야 한다'),
+      model({ input: 6500, output: 210, ko: '질문을 한 문장으로 줄이고 선택지도 짧게 다시 쓴다.', en: 'Shorten the question to one sentence and keep options brief.', next: 'final_response' }),
+      ...outputGuards(),
+      server('cards_assembled', '보정 뒤 질문 1개를 저장했다. 말풍선이 비어 기본 문장을 채웠다.'),
+    ],
+    response: (s, t) =>
+      chat(s, t, {
+        answer: ANSWER('하나만 물어볼게.'),
+        ask: { type: 'question', text: null, questions: [question('포트폴리오 정리는 언제 할래?', [{ text: '내일 오전', item_id: ITEMS.portfolio.id }, { text: '이번 주말', item_id: ITEMS.portfolio.id }, { text: '직접 입력' }])], proposals: null },
+      }),
+  }),
+  // 소요시간 빠뜨린 생성 → INVALID_ARGUMENT → 다시 호출
+  C18: (sessionId, startedAt) => {
+    const after = item({ id: null, category: 'todo', title: '치과 예약하기', estimated_minutes: 10 });
+    return {
+      caseId: 'C18',
+      sessionId,
+      startedAt,
+      input: text('치과 예약해야 됨'),
+      status: 'tool_failed',
+      steps: [
+        ...inputGuards(),
+        model({ input: 5200, output: 220, ko: '새 할 일 요청이다. 소요시간을 비운 채 생성을 준비한다.', en: 'A new todo request. Prepare the creation without an estimated duration.', next: 'propose_create_todo' }),
+        ...toolGuards('propose_create_todo', false, 'estimated_minutes는 필수 양의 정수'),
+        toolFail('propose_create_todo', { title: '치과 예약하기', memo: null, subtasks: [] }, 'INVALID_ARGUMENT', '도구 인자가 계약과 달라요.', [{ path: 'estimated_minutes', message: 'Field required' }]),
+        server('correction_requested', '도구 인자 오류. 소요시간을 추정해 다시 부르게 한다.'),
+        model({ input: 5800, output: 230, ko: '전화 한 통이면 되니 10분으로 추정해 다시 준비한다.', en: 'A phone call takes about 10 minutes; retry with that estimate.', next: 'propose_create_todo' }),
+        ...toolGuards('propose_create_todo'),
+        tool('propose_create_todo', { title: '치과 예약하기', estimated_minutes: 10, memo: null, subtasks: [] }, { proposal_ref: 'pr_2', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
+        resultGuard('propose_create_todo'),
+        model({ input: 6300, output: 160, ko: '생성 카드 참조를 채택한다.', en: 'Adopt the create card.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '제안 카드 1개를 조립하고 응답을 저장했다.'),
+      ],
+      response: (s, t) =>
+        chat(s, t, { ask: { type: 'proposal', text: '치과 예약, 10분짜리 할 일로 적어둘까?', questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] } }),
+    };
+  },
+};
+
+export const CASE_IDS = Object.keys(C);
+
+// ── 실제 요청 세션 ───────────────────────────────────────────────────────
+
+const realScenarios: ((sessionId: string, startedAt: number) => RunSpec)[] = [
+  // 세션 R1: 브리핑 → 생성 → 이동 (세 턴)
+  (s, t) => ({ ...C.C05!(s, t), caseId: null, input: text('오늘 뭐부터 하면 좋을까?') }),
+  (s, t) => ({ ...C.C01!(s, t), caseId: null, input: text('엄마 생일 선물도 사야 되는데') }),
+  (s, t) => ({ ...C.C03!(s, t), caseId: null }),
+  // 세션 R2: 질문 → 답변 (두 턴)
+  (s, t) => ({ ...C.C04!(s, t), caseId: null, input: text('내일 8시에 운동 넣어줘') }),
+  (s, t) => ({ ...C.C15!(s, t), caseId: null }),
+  // 세션 R3: 모델 장애(503) — 끝났지만 오류 응답
+  (s, t) => ({
+    caseId: null,
+    sessionId: s,
+    startedAt: t,
+    input: text('포트폴리오 정리 언제 할지 정해줘'),
+    status: 'error',
+    steps: [...inputGuards(), server('cards_assembled', 'OpenAI 호출이 연결 오류로 실패해 503 dependency_unavailable로 끝냈다.')],
+    response: (_s, turn) => errorResponse(turn, 'dependency_unavailable', '지금은 답할 수 없어요. 잠시 뒤 다시 시도해 주세요.', true),
+  }),
+  // 세션 R4: 처리 중(아직 끝나지 않음)
+  (s, t) => ({
+    caseId: null,
+    sessionId: s,
+    startedAt: t,
+    input: text('이번 주 계획 정리 좀'),
+    status: 'normal',
+    steps: [...inputGuards(), model({ input: 5100, output: 160, ko: '이번 주 계획을 조회한다.', en: 'Search this week\'s plans.', next: 'search_plans' })],
     response: null,
-  },
+    unfinished: true,
+  }),
 ];
 
-// 테스트 케이스가 아닌 실제 요청 예시 4건. 서버 시드처럼 T10의 흐름을 다른 입력으로 재사용하고,
-// 7분 간격으로 이어진 한 대화로 묶는다. 뒤 턴의 이전 대화는 앞 턴의 입력과 답변으로 서버가 만든 모양이다.
-const REAL_TEXTS = ['오늘 뭐부터 하면 좋을까?', '포트폴리오 진행 상황 알려줘'];
-const REAL_START = Date.parse('2026-10-19T07:40:00Z');
-const REAL_GAP_MS = 7 * 60000;
-export const REAL_CONVERSATION_ID = 'c0de0000-7a3e-4b1d-9c2f-000000000800';
+// ── 전체 목록 ───────────────────────────────────────────────────────────
 
-function midpoint(runs: RunDetailResponse[], index: number): number {
-  const newer = Date.parse(runs[index - 1]!.run.started_at);
-  const older = Date.parse(runs[index]!.run.started_at);
-  return Math.round((newer + older) / 2 / 1000) * 1000;
+const BASE_TIME = Date.parse('2026-10-22T23:05:00Z');
+const MIN = 60000;
+
+function build(): RunDetailResponse[] {
+  const out: RunDetailResponse[] = [];
+  let t = BASE_TIME;
+  // 테스트: 케이스마다 3회. C04 → C15는 같은 세션의 연속 턴이다.
+  for (let rep = 0; rep < 3; rep += 1) {
+    let questionSession: string | null = null;
+    for (const id of CASE_IDS) {
+      const sessionId: string = id === 'C15' && questionSession ? questionSession : uuid();
+      if (id === 'C04') questionSession = sessionId;
+      out.push(assemble(C[id]!(sessionId, t)));
+      t += between(3, 9) * MIN;
+    }
+    t += 25 * MIN;
+  }
+  // 실제 요청: 세션 R1(3턴)·R2(2턴)·R3·R4
+  const groups = [3, 2, 1, 1];
+  let i = 0;
+  for (const n of groups) {
+    const sessionId = uuid();
+    for (let k = 0; k < n; k += 1) {
+      out.push(assemble(realScenarios[i]!(sessionId, t)));
+      i += 1;
+      t += between(2, 5) * MIN;
+    }
+    t += 14 * MIN;
+  }
+  return out;
 }
 
-function buildRealRuns(): RunDetailResponse[] {
-  const t10 = CASES.find((c) => c.id === 'T10')!;
-  const history: HistoryMessage[] = [];
-  return [0, 1, 2, 3].map((k) => {
-    const t = REAL_START + k * REAL_GAP_MS;
-    const built = buildSteps(t10.steps, t, TF[k % 4]!, DF[(k + 1) % 4]!);
-    const ms = built.ms + 110;
-    const text = REAL_TEXTS[k % 2]!;
-    const input = msg(text);
-    const hash = hex8(200 + k);
-    const before = [...history];
-    history.push({ role: 'user', text: '[' + iso(t).slice(0, 10) + '] ' + text }, { role: 'assistant', text: t10.reply.message });
-    return {
-      run: {
-        request_id: hash + '-7a3e-4b1d-9c2f-' + String(800 + k).padStart(12, '0'),
-        conversation_id: REAL_CONVERSATION_ID,
-        test_case_id: null,
-        path: 'model',
-        status: 'normal',
-        model: MOCK_MODEL,
-        message_replaced: false,
-        ...summarizeSteps(built.steps),
-        started_at: iso(t),
-        finished_at: iso(t + ms),
-        duration_ms: ms,
-        input_preview: preview(input),
-      },
-      input,
-      history: before,
-      response: {
-        turn_id: hash + '-41c2-9b7e-' + hash.slice(0, 4) + 'a0d1',
-        message: t10.reply.message,
-        options: t10.reply.options,
-        views: viewsOf(t10),
-        operations: opsOf(t10),
-      },
-      steps: built.steps,
-    };
-  });
-}
+export const MOCK_RUNS: RunDetailResponse[] = build();
 
-// 서버의 목록 정렬(started_at DESC, request_id DESC)과 같다.
-function byNewest(a: RunDetailResponse, b: RunDetailResponse): number {
-  return b.run.started_at.localeCompare(a.run.started_at) || b.run.request_id.localeCompare(a.run.request_id);
-}
-
-function buildRuns(): RunDetailResponse[] {
-  const runs = buildCaseRuns();
-  const errors = ERROR_RUNS.map((e, k): RunDetailResponse => {
-    // 이웃한 두 케이스 실행 사이 시각에 끼워 넣는다.
-    const t = midpoint(runs, e.index);
-    const built = buildSteps(e.steps, t, 1, 1);
-    const ms = built.ms + 110;
-    const input = msg(e.input);
-    return {
-      run: {
-        request_id: 'e' + hex8(100 + k).slice(1) + '-7a3e-4b1d-9c2f-' + String(900 + k).padStart(12, '0'),
-        conversation_id: conversationId(900 + k),
-        test_case_id: null,
-        path: 'model',
-        status: 'error',
-        model: MOCK_MODEL,
-        message_replaced: false,
-        ...summarizeSteps(built.steps),
-        started_at: iso(t),
-        finished_at: iso(t + ms),
-        duration_ms: ms,
-        input_preview: preview(input),
-      },
-      input,
-      history: toHistory(e.history),
-      response: e.response,
-      steps: built.steps,
-    };
-  });
-  return [...runs, ...errors, ...buildRealRuns()].sort(byNewest);
-}
-
-/** 최신순으로 정렬된 예시 실행 기록 50건. */
-export const MOCK_RUNS: RunDetailResponse[] = buildRuns();
+export const TOOL_KINDS_IN_MOCK: ToolKind[] = ['query', 'proposal', 'briefing'];

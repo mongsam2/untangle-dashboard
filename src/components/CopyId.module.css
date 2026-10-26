@@ -1,16 +1,8 @@
 .id {
   padding: 0;
   border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
+  background: transparent;
   cursor: copy;
-  text-align: left;
-  text-decoration: underline dotted;
+  text-decoration: underline dotted var(--line-connector);
   text-underline-offset: 3px;
-}
-
-.id:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
 }

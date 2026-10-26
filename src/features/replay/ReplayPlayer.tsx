@@ -1,96 +1,49 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useMemo } from 'react';
 import { useRun } from '../../api/queries';
 import type { RunDetailResponse } from '../../api/types';
 import { Badge } from '../../components/Badge';
-import { Button } from '../../components/Button';
-import { CloseIcon } from '../../components/icons';
-import { inputText } from '../../lib/input';
-import { summaryOf } from '../runs/summary';
-import { PhoneChat } from './PhoneChat';
+import { shortId } from '../../lib/format';
+import { RUN_STATUS } from '../../lib/status';
 import { ReplayControls } from './ReplayControls';
-import { buildView, finalTextOf, runTimeline, scriptOf } from './replayModel';
-import s from './ReplayPlayer.module.css';
+import { ReplayFrame } from './ReplayFrame';
+import s from './Replay.module.css';
+import { buildTimeline, viewAt } from './replayModel';
 import { StepStream } from './StepStream';
 import { useReplay } from './useReplay';
 
-interface ReplayPlayerProps {
-  runId: string;
-  onClose: () => void;
-}
-
-// 요청 하나를 이전 대화 → 사용자 입력 → 단계 → 최종 응답 순서로 다시 보여주는 전체 화면.
-export function ReplayPlayer({ runId, onClose }: ReplayPlayerProps) {
+// 실행 하나를 시간 순서대로 다시 보여준다. 폰 화면에는 사용자 입력 → ··· → 최종 응답, 오른쪽에는 단계 카드가 쌓인다.
+export function ReplayPlayer({ runId, onClose }: { runId: string; onClose: () => void }) {
   const q = useRun(runId);
-  return (
-    <ReplayDialog label="실행 재생" onClose={onClose}>
-      {q.data ? (
-        <Player key={runId} detail={q.data} onClose={onClose} />
-      ) : (
-        <ReplayLoading failed={q.isError} onClose={onClose} />
-      )}
-    </ReplayDialog>
-  );
-}
-
-/** 재생 전체 화면 틀. Esc로 닫고 뒤 화면의 스크롤을 막는다. */
-export function ReplayDialog({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
-
-  return (
-    <div role="dialog" aria-modal="true" aria-label={label} className={s.dialog}>
-      {children}
-    </div>
-  );
-}
-
-export function ReplayLoading({ failed, onClose }: { failed: boolean; onClose: () => void }) {
-  return (
-    <>
-      <TopBar caseLabel="" title={failed ? '불러오지 못했어요' : '불러오는 중…'} onClose={onClose} />
-      <div className={s.body} />
-    </>
-  );
-}
-
-export function TopBar({ caseLabel, title, onClose }: { caseLabel: string; title: string; onClose: () => void }) {
-  return (
-    <div className={s.top}>
-      {caseLabel && (
-        <Badge mono bg="var(--color-ink)" fg="var(--color-canvas)">
-          {caseLabel}
-        </Badge>
-      )}
-      <span className={s.title}>{title}</span>
-      <Button variant="icon" className={s.close} aria-label="재생 닫기" onClick={onClose}>
-        <CloseIcon />
-      </Button>
-    </div>
-  );
+  if (!q.data) {
+    return (
+      <div className={s.scrim} onClick={onClose}>
+        <div className={s.player} style={{ height: 'auto', padding: 24 }}>
+          {q.isError ? '요청을 불러오지 못했어요. ' + q.error.message : '불러오는 중…'}
+        </div>
+      </div>
+    );
+  }
+  return <Player detail={q.data} onClose={onClose} />;
 }
 
 function Player({ detail, onClose }: { detail: RunDetailResponse; onClose: () => void }) {
-  const script = useMemo(() => scriptOf(detail), [detail]);
-  const timeline = useMemo(() => runTimeline(script), [script]);
-  const rp = useReplay(timeline);
-  const view = buildView(detail, script, rp.state);
-  const final = finalTextOf(detail);
+  const timeline = useMemo(() => buildTimeline(detail), [detail]);
+  const replay = useReplay(timeline.total);
+  const view = useMemo(() => viewAt(detail, timeline, replay.pos), [detail, timeline, replay.pos]);
+  const st = RUN_STATUS[detail.run.status];
   return (
-    <>
-      <TopBar caseLabel={detail.run.test_case_id ?? '실제 요청'} title={summaryOf(detail.run)} onClose={onClose} />
-      <div className={s.body}>
-        <PhoneChat view={view} userText={inputText(detail.input)} finalText={final.text} options={final.options} />
-        <StepStream cards={view.cards} />
-      </div>
-      <ReplayControls view={view} playing={rp.state.playing} onToggle={rp.toggle} onPrev={rp.prev} onNext={rp.next} onSeek={rp.seek} />
-    </>
+    <ReplayFrame
+      title="요청 재생"
+      sub={'turn ' + shortId(detail.run.turn_id)}
+      badges={
+        <Badge bg={st.bg} fg={st.fg} dot={st.dot}>
+          {st.label}
+        </Badge>
+      }
+      view={view}
+      stream={<StepStream groups={[{ key: detail.run.turn_id, steps: view.steps }]} empty="재생을 시작하면 단계가 여기에 쌓여요." />}
+      controls={<ReplayControls view={view} total={timeline.total} playing={replay.playing} speed={replay.speed} onToggle={replay.toggle} onSeek={replay.seek} onSpeed={replay.setSpeed} />}
+      onClose={onClose}
+    />
   );
 }

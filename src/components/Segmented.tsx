@@ -5,6 +5,7 @@ export interface SegmentOption<T extends string> {
   value: T;
   label: string;
   count?: number;
+  title?: string;
 }
 
 interface SegmentedProps<T extends string> {
@@ -19,11 +20,11 @@ interface SegmentedProps<T extends string> {
 export function Segmented<T extends string>({ label, labelWidth, options, value, onChange }: SegmentedProps<T>) {
   return (
     <div className={s.row} role="group" aria-label={label}>
-      <span className={`th ${s.label}`} style={labelWidth ? { width: labelWidth } : undefined}>
+      <span className={s.label} style={labelWidth ? { width: labelWidth } : undefined}>
         {label}
       </span>
       {options.map((o) => (
-        <Button key={o.value} variant="chip" aria-pressed={value === o.value} onClick={() => onChange(o.value)}>
+        <Button key={o.value} variant="chip" title={o.title} aria-pressed={value === o.value} onClick={() => onChange(o.value)}>
           {o.label}
           {o.count !== undefined && <span className={`mono ${s.count}`}>{o.count}</span>}
         </Button>

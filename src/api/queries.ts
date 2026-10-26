@@ -2,11 +2,12 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import { api } from './client';
 import type { RunFilters, RunSource } from './types';
 
+/** 서버가 허용하는 최대 페이지 크기. */
 const PAGE_SIZE = 100;
 
-const filterKey = (f: RunFilters) => ({ source: f.source ?? 'all', path: f.path ?? null, status: f.status ?? null });
+const filterKey = (f: RunFilters) => ({ source: f.source ?? 'all', status: f.status ?? null });
 
-/** 요청 목록(커서 페이지). 첫 페이지의 summary가 필터 조건 전체의 KPI다. */
+/** 실행 목록(커서 페이지). 첫 페이지의 summary가 필터 조건 전체의 KPI다. */
 export function useRuns(filters: RunFilters) {
   return useInfiniteQuery({
     queryKey: ['runs', filterKey(filters)],
@@ -27,30 +28,30 @@ export function useRunSummary(filters: RunFilters) {
   });
 }
 
-export function useRun(requestId: string | null) {
+export function useRun(turnId: string | null) {
   return useQuery({
-    queryKey: ['run', requestId],
-    queryFn: () => api.getRun(requestId!),
-    enabled: !!requestId,
+    queryKey: ['run', turnId],
+    queryFn: () => api.getRun(turnId!),
+    enabled: !!turnId,
   });
 }
 
-/** 대화 목록(커서 페이지). 마지막 요청이 최근인 대화부터 온다. */
-export function useConversations(source: RunSource) {
+/** 세션 목록(커서 페이지). 마지막 턴이 최근인 세션부터 온다. */
+export function useSessions(source: RunSource) {
   return useInfiniteQuery({
-    queryKey: ['conversations', source],
-    queryFn: ({ pageParam }) => api.listConversations({ source, limit: PAGE_SIZE, cursor: pageParam }),
+    queryKey: ['sessions', source],
+    queryFn: ({ pageParam }) => api.listSessions({ source, limit: PAGE_SIZE, cursor: pageParam }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor ?? null,
     placeholderData: keepPreviousData,
   });
 }
 
-export function useConversation(conversationId: string | null) {
+export function useSession(sessionId: string | null) {
   return useQuery({
-    queryKey: ['conversation', conversationId],
-    queryFn: () => api.getConversation(conversationId!),
-    enabled: !!conversationId,
+    queryKey: ['session', sessionId],
+    queryFn: () => api.getSession(sessionId!),
+    enabled: !!sessionId,
   });
 }
 

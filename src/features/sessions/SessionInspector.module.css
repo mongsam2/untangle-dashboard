@@ -1,0 +1,75 @@
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.turnHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 0;
+}
+
+.turnNo {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.turnTime {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.turnActions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stepsToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px dashed var(--line-hierarchy);
+  border-radius: var(--radius-8);
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.cum {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-8);
+  background: var(--surface-emphasis);
+  color: var(--text-emphasis);
+  font-size: 12px;
+}
+
+.omitted {
+  padding: 10px 14px;
+  border-radius: var(--radius-8);
+  background: var(--surface-warning);
+  color: var(--text-warning);
+  font-size: 13px;
+}
+
+.divider {
+  height: 1px;
+  background: var(--line-hierarchy);
+  margin: 6px 0;
+}

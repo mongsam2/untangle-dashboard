@@ -3,6 +3,7 @@ import { StepIcon } from '../../../components/StepIcon';
 import { fmtCost, fmtMs } from '../../../lib/format';
 import { iconKindOf } from '../../../lib/kinds';
 import type { DisplayStep } from '../displaySteps';
+import { isAttention } from '../displaySteps';
 import s from './StepCard.module.css';
 
 interface StepCardProps {
@@ -20,7 +21,7 @@ interface StepCardProps {
 export function StepCard({ step, title, mono, tags, selected, onSelect, children }: StepCardProps) {
   const server = step.kind === 'server';
   return (
-    <div className={`card ${server ? s.server : ''} ${selected ? s.selected : ''}`}>
+    <div className={`card ${s.card} ${server ? s.server : ''} ${selected ? s.selected : ''} ${isAttention(step) ? s.attention : ''}`}>
       <button type="button" className={s.head} aria-pressed={selected} onClick={onSelect}>
         <StepIcon kind={iconKindOf(step.kind, step.tool_kind)} />
         <span className={`${mono ? 'mono' : ''} ${s.title} ${server ? s.titleServer : ''}`}>{title}</span>

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { MutationOutcome, RunPath, RunSource, RunStatus } from '../api/types';
+import type { RunSource, RunStatus } from '../api/types';
 
 export interface Tone {
   label: string;
@@ -8,81 +8,86 @@ export interface Tone {
   dot: string;
 }
 
+const tone = (label: string, key: string): Tone => ({
+  label,
+  bg: `var(--status-${key}-bg)`,
+  fg: `var(--status-${key}-fg)`,
+  dot: `var(--status-${key}-dot)`,
+});
+
+/** 실행 상태 6종의 표기와 색. 순서는 필터·범례·비율 막대가 같이 쓴다. */
 export const RUN_STATUS: Record<RunStatus, Tone> = {
-  normal: { label: '정상', bg: 'var(--status-ok-bg)', fg: 'var(--status-ok-fg)', dot: 'var(--status-ok-dot)' },
-  tool_failed: { label: '도구 실패', bg: 'var(--status-warn-bg)', fg: 'var(--status-warn-fg)', dot: 'var(--status-warn-dot)' },
-  outcome_unknown: { label: '반영 미확인', bg: 'var(--status-unknown-bg)', fg: 'var(--status-unknown-fg)', dot: 'var(--status-unknown-dot)' },
-  error: { label: '응답 오류', bg: 'var(--status-error-bg)', fg: 'var(--status-error-fg)', dot: 'var(--status-error-dot)' },
+  normal: tone('정상', 'normal'),
+  tool_failed: tone('도구 실패', 'tool-failed'),
+  blocked_input: tone('입력 차단', 'blocked-input'),
+  limit_exceeded: tone('한도 초과', 'limit-exceeded'),
+  output_rejected: tone('출력 거부', 'output-rejected'),
+  error: tone('서버 오류', 'error'),
 };
 
-export const RUN_STATUS_ORDER: RunStatus[] = ['normal', 'tool_failed', 'outcome_unknown', 'error'];
+export const RUN_STATUS_ORDER: RunStatus[] = ['normal', 'tool_failed', 'blocked_input', 'limit_exceeded', 'output_rejected', 'error'];
 
-const NEUTRAL_BG = 'var(--color-divider)';
-const FAIL = { bg: 'var(--failure-bg)', fg: 'var(--failure-fg)', dot: 'var(--data-failure)' };
-
-export const STEP_STATUS: Record<string, Tone> = {
-  success: { label: '성공', bg: NEUTRAL_BG, fg: 'var(--color-ink)', dot: 'var(--color-dot-neutral)' },
-  applied: { label: '반영', bg: NEUTRAL_BG, fg: 'var(--color-ink)', dot: 'var(--color-ink)' },
-  unchanged: { label: '변경 없음', bg: NEUTRAL_BG, fg: 'var(--color-body)', dot: 'var(--color-dot-neutral)' },
-  failed: { label: '실패', ...FAIL },
-  unknown: { label: 'unknown', ...FAIL },
+/** 상태를 짧게 설명하는 문장. 필터 패널과 상세 머리에 보인다. */
+export const RUN_STATUS_HINT: Record<RunStatus, string> = {
+  normal: '가드레일을 모두 통과하고 응답을 보냈어요.',
+  tool_failed: '도구가 오류를 돌려줬어요. 응답은 그 사실을 알립니다.',
+  blocked_input: '입력 가드레일에서 막혀 모델을 부르지 않았어요.',
+  limit_exceeded: '시간·왕복·출력 한도를 넘어 카드 없이 고정 안내로 끝났어요.',
+  output_rejected: '보정 1회 뒤에도 출력 검증을 통과하지 못했어요.',
+  error: '모델·DB 장애나 서버 오류로 응답을 만들지 못했어요.',
 };
 
-/** 사용자 변경(`mutation_results`)의 처리 결과. 거절만 실패색이고, 나머지는 서버가 의도한 정상 처리다. */
-export const MUTATION_OUTCOME_ORDER: MutationOutcome[] = ['applied', 'unchanged', 'superseded', 'already_exists', 'target_deleted', 'rejected'];
+const NEUTRAL: Tone = { label: '', bg: 'var(--surface-field)', fg: 'var(--text-primary)', dot: 'var(--line-connector)' };
+const FAIL: Tone = { label: '실패', bg: 'var(--surface-danger)', fg: 'var(--text-danger)', dot: 'var(--data-failure)' };
+const OK: Tone = { label: '성공', bg: 'var(--surface-success)', fg: 'var(--text-success)', dot: 'var(--data-success)' };
 
-export const MUTATION_OUTCOME: Record<MutationOutcome, Tone> = {
-  applied: { label: '반영', bg: NEUTRAL_BG, fg: 'var(--color-ink)', dot: 'var(--color-ink)' },
-  unchanged: { label: '변경 없음', bg: NEUTRAL_BG, fg: 'var(--color-body)', dot: 'var(--color-dot-neutral)' },
-  superseded: { label: '더 나중 변경이 있음', bg: NEUTRAL_BG, fg: 'var(--color-body)', dot: 'var(--color-dot-neutral)' },
-  already_exists: { label: '이미 있음', bg: NEUTRAL_BG, fg: 'var(--color-body)', dot: 'var(--color-dot-neutral)' },
-  target_deleted: { label: '삭제된 대상', bg: 'var(--status-warn-bg)', fg: 'var(--status-warn-fg)', dot: 'var(--status-warn-dot)' },
-  rejected: { label: '거절', ...FAIL },
-};
+export function toolTone(status: string | null | undefined): Tone {
+  if (status === 'success') return OK;
+  if (status === 'failed') return FAIL;
+  return { ...NEUTRAL, label: status ?? '-' };
+}
 
-export function stepTone(status: string | null | undefined): Tone {
-  return STEP_STATUS[status ?? ''] ?? { label: status ?? '-', bg: NEUTRAL_BG, fg: 'var(--color-ink)', dot: 'var(--color-dot-neutral)' };
+export function guardTone(passed: boolean | null | undefined): Tone {
+  if (passed === false) return { ...FAIL, label: '차단' };
+  return { label: '통과', bg: 'var(--surface-field)', fg: 'var(--text-secondary)', dot: 'var(--data-success)' };
 }
 
 export function isFailure(status: string | null | undefined): boolean {
-  return status === 'failed' || status === 'unknown';
+  return status === 'failed';
 }
 
 // 표 행 배경. 정상은 색을 입히지 않고 문제가 있는 요청만 연하게 칠한다.
 export const ROW_TINT: Record<RunStatus, string> = {
   normal: '',
-  tool_failed: 'var(--row-tint-warn)',
-  outcome_unknown: 'var(--row-tint-unknown)',
+  tool_failed: 'var(--row-tint-tool-failed)',
+  blocked_input: 'var(--row-tint-blocked-input)',
+  limit_exceeded: 'var(--row-tint-limit-exceeded)',
+  output_rejected: 'var(--row-tint-output-rejected)',
   error: 'var(--row-tint-error)',
 };
 
 export function rowStyleOf(status: RunStatus, selected: boolean): CSSProperties {
-  const bg = ROW_TINT[status] || (selected ? 'var(--color-parchment)' : '');
+  const bg = ROW_TINT[status] || (selected ? 'var(--surface-field)' : '');
   const style: CSSProperties = {};
   if (bg) style.background = bg;
-  if (selected) style.boxShadow = 'inset 3px 0 0 var(--color-focus)';
+  if (selected) style.boxShadow = 'inset 3px 0 0 var(--border-focus)';
   return style;
 }
 
-export const PATH_LABEL: Record<RunPath, string> = {
-  model: '모델',
-  accept_direct: '수락 직행',
-  reject_direct: '거절 직행',
-};
-
-export const PATH_COLOR: Record<RunPath, string> = {
-  model: 'var(--data-model)',
-  accept_direct: 'var(--path-accept)',
-  reject_direct: 'var(--path-reject)',
-};
-
 export type RowSource = Exclude<RunSource, 'all'>;
 
-export const SOURCE: Record<RowSource, { label: string; bg: string; fg: string }> = {
-  test: { label: '테스트', bg: 'var(--color-divider)', fg: 'var(--color-ink)' },
-  real: { label: '실제 요청', bg: 'var(--color-ink)', fg: 'var(--color-canvas)' },
+export const SOURCE: Record<RowSource, { label: string; bg: string; fg: string; border: string }> = {
+  test: { label: '테스트', bg: 'var(--surface-document)', fg: 'var(--text-primary)', border: 'var(--line-hierarchy)' },
+  real: { label: '실제 요청', bg: 'var(--surface-inverse)', fg: 'var(--text-inverse)', border: 'var(--surface-inverse)' },
 };
 
 export function sourceOf(testCaseId: string | null): RowSource {
   return testCaseId ? 'test' : 'real';
+}
+
+/** 응답의 후속 입력 종류 표기. */
+export function askLabel(askType: 'question' | 'proposal' | null, questions: number, proposals: number): string {
+  if (askType === 'question') return '질문 ' + questions;
+  if (askType === 'proposal') return '제안 ' + proposals;
+  return '답변';
 }

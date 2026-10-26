@@ -1,72 +1,55 @@
 .card {
-  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  padding: 14px 20px 16px;
 }
 
 .head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 36px;
-}
-
-.history {
-  display: flex;
-  flex-direction: column;
   gap: 10px;
-  padding: 14px 16px;
-  border-radius: var(--radius-sm);
-  background: var(--color-parchment);
 }
 
-.line {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-}
-
-.roleUser,
-.roleAgent {
+.label {
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: -0.12px;
-}
-
-.roleUser {
-  color: var(--color-ink);
-}
-
-.roleAgent {
-  color: var(--color-muted);
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .text {
-  font-size: 14px;
-  line-height: 1.43;
-  letter-spacing: -0.224px;
-  color: var(--color-body);
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.day {
-  margin-right: 8px;
+.mention {
+  display: inline-block;
+  padding: 0 6px;
+  margin: 0 2px;
+  border-radius: 6px;
+  background: var(--surface-emphasis);
+  color: var(--text-emphasis);
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--color-muted);
+  vertical-align: baseline;
 }
 
-.unanswered {
-  margin-left: 8px;
+.answers {
+  color: var(--text-secondary);
+}
+
+.context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   font-size: 12px;
-  letter-spacing: -0.12px;
-  color: var(--color-muted);
+  color: var(--text-secondary);
 }
 
-.input {
-  font-size: 17px;
-  line-height: 1.47;
-  letter-spacing: -0.374px;
+.targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

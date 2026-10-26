@@ -1,0 +1,315 @@
+/* 구조 탭. 전역 메뉴 아래를 캔버스가 다 채우고, 제목·범례·줌은 캔버스 위에 떠 있다. */
+.root {
+  position: relative;
+  height: calc(100vh - var(--nav-height));
+  overflow: hidden;
+  background-color: var(--surface-field);
+  background-image: radial-gradient(var(--line-hierarchy) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  cursor: grab;
+}
+
+.scrollDragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.canvas {
+  display: block;
+}
+
+.float {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--surface-document);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  box-shadow: 0 8px 24px rgba(23, 33, 47, 0.08);
+}
+
+.titleCard {
+  top: 20px;
+  left: 20px;
+  max-width: 360px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.legend {
+  left: 20px;
+  bottom: 20px;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legendBar {
+  width: 8px;
+  height: 18px;
+  border-radius: 2px;
+}
+
+.legendLine {
+  width: 22px;
+  height: 0;
+  border-top: 2.5px solid var(--icon-primary);
+}
+
+.legendLineThin {
+  border-top: 1.5px solid var(--line-connector);
+}
+
+.legendLineDashed {
+  border-top: 1.5px dashed var(--line-connector);
+}
+
+.zoom {
+  right: 20px;
+  bottom: 20px;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+}
+
+.zoomValue {
+  min-width: 48px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* SVG 요소 */
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover .nodeBox,
+.clickable:hover .chipBox,
+.clickable:hover .gateBar {
+  filter: brightness(0.97);
+}
+
+.clickable:focus-visible {
+  outline: none;
+}
+
+.clickable:focus-visible .nodeBox,
+.clickable:focus-visible .chipBox {
+  stroke: var(--border-focus);
+  stroke-width: 2;
+}
+
+.nodeBox {
+  fill: var(--surface-document);
+  stroke: var(--line-hierarchy);
+  stroke-width: 1.5;
+}
+
+.nodeApp {
+  fill: var(--surface-document);
+  stroke: var(--icon-primary);
+  stroke-width: 2.5;
+}
+
+.nodeHub {
+  fill: var(--surface-inverse);
+  stroke: var(--surface-inverse);
+}
+
+.nodeDb {
+  fill: var(--surface-document);
+  stroke: var(--line-connector);
+  stroke-width: 1.5;
+}
+
+.selected {
+  stroke: var(--border-focus) !important;
+  stroke-width: 2.5 !important;
+}
+
+.region {
+  fill: var(--surface-document);
+  fill-opacity: 0.55;
+  stroke: var(--border-subtle);
+  stroke-width: 1.5;
+}
+
+.regionLabel {
+  font-size: 14px;
+  font-weight: 700;
+  fill: var(--text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.shelfBox {
+  fill: var(--surface-field);
+  stroke: var(--border-subtle);
+  stroke-width: 1.5;
+}
+
+.chipBox {
+  fill: var(--surface-document);
+  stroke: var(--border-subtle);
+  stroke-width: 1.5;
+}
+
+.overline {
+  font-size: 12px;
+  font-weight: 500;
+  fill: var(--text-emphasis);
+}
+
+.label {
+  font-size: 18px;
+  font-weight: 700;
+  fill: var(--text-primary);
+}
+
+.labelInverse {
+  fill: var(--text-inverse);
+}
+
+.labelSmall {
+  font-size: 14px;
+  font-weight: 500;
+  fill: var(--text-primary);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.groupTitle {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--text-secondary);
+}
+
+.gateLabel {
+  font-size: 13px;
+  font-weight: 500;
+  fill: var(--text-primary);
+}
+
+.edge {
+  fill: none;
+  stroke: var(--line-connector);
+  stroke-width: 1.5;
+}
+
+.edgeMain {
+  stroke: var(--icon-primary);
+  stroke-width: 2.5;
+}
+
+.edgeDashed {
+  stroke-dasharray: 8 8;
+}
+
+.divider {
+  stroke: var(--line-hierarchy);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 8;
+}
+
+.chipLabel {
+  font-size: 12px;
+  font-weight: 500;
+  fill: var(--surface-document);
+}
+
+/* 설명 창 본문 */
+.docSummary {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.docPoints {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.docPoint {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.docHead {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.docBody {
+  color: var(--text-secondary);
+}
+
+.sideItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.sideLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sideValue {
+  font-weight: 500;
+}
+
+.source {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.footerNav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+@media (max-width: 860px) {
+  .docPoint {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}

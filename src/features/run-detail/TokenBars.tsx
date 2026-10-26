@@ -11,7 +11,7 @@ interface Seg {
 }
 
 // 요청 전체의 입력·출력 토큰 구성 막대.
-export function TokenBars({ run }: { run: RunListItem }) {
+export function TokenBars({ run }: { run: Pick<RunListItem, 'input_tokens' | 'cached_tokens' | 'output_tokens' | 'reasoning_tokens'> }) {
   const bars: { label: string; total: number; segs: Seg[] }[] = [
     {
       label: '입력 토큰',

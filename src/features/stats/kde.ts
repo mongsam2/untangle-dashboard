@@ -1,56 +1,48 @@
-import { fmtInt } from '../../lib/format';
+// 요청당 토큰 분포. 가우시안 커널 밀도 추정으로 곡선을 그린다. 라이브러리 없이 계산한다.
 
-export interface KdeModel {
-  median: string;
-  mean: string;
-  max: string;
-  area: string;
-  line: string;
-  medianLine: string;
-  rug: { x: string; title: string }[];
-  ticks: { x: string; shift: string; label: string }[];
-  aria: string;
+export interface Kde {
+  xs: number[];
+  ys: number[];
+  mean: number;
+  median: number;
+  max: number;
+  sd: number;
+  n: number;
 }
 
-export const KDE_W = 600;
-export const KDE_H = 180;
-const N = 120;
+const POINTS = 96;
 
-/**
- * 요청당 총 토큰의 커널 밀도 곡선(viewBox 600×180 경로).
- * 띠폭은 실버먼 규칙(최소 1500), 0 아래로 새는 밀도는 0에서 반사한다.
- */
-export function computeKde(samples: number[]): KdeModel {
-  const out: KdeModel = { median: '-', mean: '-', max: '-', area: '', line: '', medianLine: '', rug: [], ticks: [], aria: '요청당 토큰 분포' };
-  const vals = [...samples].sort((a, b) => a - b);
-  const nv = vals.length;
-  if (!nv) return out;
-  const mean = vals.reduce((a, x) => a + x, 0) / nv;
-  const sd = Math.sqrt(vals.reduce((a, x) => a + (x - mean) * (x - mean), 0) / nv) || 1000;
-  const bw = Math.max(1500, 1.06 * sd * Math.pow(nv, -0.2));
-  const top = Math.max(10000, Math.ceil((vals[nv - 1]! * 1.1) / 10000) * 10000);
+export function computeKde(samples: number[]): Kde | null {
+  const xs0 = samples.filter((x) => Number.isFinite(x) && x >= 0);
+  const n = xs0.length;
+  if (!n) return null;
+  const sorted = [...xs0].sort((a, b) => a - b);
+  const mean = sorted.reduce((a, x) => a + x, 0) / n;
+  const median = n % 2 ? sorted[(n - 1) / 2]! : (sorted[n / 2 - 1]! + sorted[n / 2]!) / 2;
+  const max = sorted[n - 1]!;
+  const sd = Math.sqrt(sorted.reduce((a, x) => a + (x - mean) ** 2, 0) / n);
+  // Silverman 대역폭. 표본이 하나거나 분산이 0이면 최대값의 10%로 둔다.
+  const bw = sd > 0 && n > 1 ? 1.06 * sd * n ** -0.2 : Math.max(max * 0.1, 1);
+  const hi = max + bw * 2;
+  const xs: number[] = [];
   const ys: number[] = [];
-  for (let i = 0; i <= N; i++) {
-    const x = (top * i) / N;
-    let d = 0;
-    for (const v of vals) d += Math.exp(-0.5 * ((x - v) / bw) ** 2) + Math.exp(-0.5 * ((x + v) / bw) ** 2);
-    ys.push(d);
+  for (let i = 0; i < POINTS; i += 1) {
+    const x = (hi * i) / (POINTS - 1);
+    let y = 0;
+    for (const s of sorted) {
+      const z = (x - s) / bw;
+      y += Math.exp(-0.5 * z * z);
+    }
+    xs.push(x);
+    ys.push(y / (n * bw * Math.sqrt(2 * Math.PI)));
   }
-  const ymax = Math.max(...ys) || 1;
-  const pts = ys.map((y, i) => ((KDE_W * i) / N).toFixed(1) + ',' + (176 - (y / ymax) * 166).toFixed(1));
-  out.line = 'M' + pts.join(' L');
-  out.area = out.line + ` L${KDE_W},${KDE_H} L0,${KDE_H} Z`;
-  const med = nv % 2 ? vals[(nv - 1) / 2]! : (vals[nv / 2 - 1]! + vals[nv / 2]!) / 2;
-  const mx = ((KDE_W * med) / top).toFixed(1);
-  out.medianLine = 'M' + mx + ',4 L' + mx + ',' + KDE_H;
-  out.median = fmtInt(med);
-  out.mean = fmtInt(mean);
-  out.max = fmtInt(vals[nv - 1]!);
-  out.rug = vals.map((v) => ({ x: ((v / top) * 100).toFixed(2), title: fmtInt(v) + ' 토큰' }));
-  const step = top / 5;
-  for (let i = 0; i <= 5; i++) {
-    out.ticks.push({ x: (i * 20).toFixed(0), shift: i === 0 ? '0' : i === 5 ? '-100%' : '-50%', label: i === 0 ? '0' : Math.round((step * i) / 1000) + 'K' });
-  }
-  out.aria = '요청당 토큰 분포. 중앙값 ' + out.median + ', 평균 ' + out.mean + ', 최대 ' + out.max + ' 토큰';
-  return out;
+  return { xs, ys, mean, median, max, sd, n };
+}
+
+/** 곡선을 SVG path로. 아래를 채우는 닫힌 영역이다. */
+export function areaPath(k: Kde, width: number, height: number): string {
+  const yMax = Math.max(...k.ys) || 1;
+  const pts = k.xs.map((x, i) => [(x / (k.xs[k.xs.length - 1] || 1)) * width, height - (k.ys[i]! / yMax) * (height - 8)] as const);
+  const line = pts.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1)).join(' ');
+  return line + ` L${width} ${height} L0 ${height} Z`;
 }

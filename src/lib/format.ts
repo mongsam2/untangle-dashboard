@@ -11,7 +11,8 @@ export function fmtCost(c: number | null | undefined): string {
   return c == null ? '-' : '$' + c.toFixed(4);
 }
 
-export function fmtMs(ms: number): string {
+export function fmtMs(ms: number | null | undefined): string {
+  if (ms == null) return '-';
   const v = Math.round(ms);
   return v < 1000 ? v + 'ms' : (v / 1000).toFixed(1) + 's';
 }
@@ -32,7 +33,6 @@ export function fmtTime(iso: string): string {
 
 /**
  * 목록의 시각. 오늘(한국 시간) 기록은 시:분:초, 그 전 기록은 날짜를 붙여 월/일 시:분으로 보인다.
- * 여러 날에 걸친 목록에서 시각만 보이면 순서가 뒤섞여 보이기 때문이다.
  */
 export function fmtStamp(iso: string, now: number = Date.now()): string {
   const d = kst(iso);
@@ -40,7 +40,7 @@ export function fmtStamp(iso: string, now: number = Date.now()): string {
   const sameDay =
     d.getUTCFullYear() === today.getUTCFullYear() && d.getUTCMonth() === today.getUTCMonth() && d.getUTCDate() === today.getUTCDate();
   if (sameDay) return fmtTime(iso);
-  return d.getUTCMonth() + 1 + '/' + d.getUTCDate() + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+  return pad(d.getUTCMonth() + 1) + '/' + pad(d.getUTCDate()) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -55,15 +55,7 @@ export function fmtDateTime(iso: string): string {
   return d.getUTCMonth() + 1 + '월 ' + d.getUTCDate() + '일 ' + fmtTime(iso);
 }
 
-export function fmtDeadline(iso: string): string {
-  const d = kst(iso);
-  return d.getUTCMonth() + 1 + '월 ' + d.getUTCDate() + '일 ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
-}
-
-/**
- * 예정 시작 날짜(`YYYY-MM-DD`)와 시각(`HH:mm`). 사용자 기기 기준의 벽시계 값이라 시간대가 없다.
- * 한국 시간으로 바꾸지 않고 적힌 그대로 읽는다. 둘 다 없으면 null.
- */
+/** 계획의 날짜(`YYYY-MM-DD`)와 시각(`HH:mm`). 기기 시간대 기준 값이라 변환하지 않고 적힌 그대로 읽는다. */
 export function fmtWall(date: string | null | undefined, time: string | null | undefined): string | null {
   const m = date ? /^\d{4}-(\d{2})-(\d{2})$/.exec(date) : null;
   const day = m ? Number(m[1]) + '월 ' + Number(m[2]) + '일' : (date ?? null);
@@ -73,4 +65,12 @@ export function fmtWall(date: string | null | undefined, time: string | null | u
 /** 0~1 비율을 퍼센트 문자열로. */
 export function fmtPct(ratio: number, digits = 1): string {
   return (ratio * 100).toFixed(digits) + '%';
+}
+
+export function fmtMinutes(min: number | null | undefined): string {
+  if (min == null) return '미정';
+  if (min < 60) return min + '분';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? h + '시간 ' + m + '분' : h + '시간';
 }

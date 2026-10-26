@@ -1,0 +1,93 @@
+.table {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+
+.tools {
+  grid-template-columns: 8px minmax(160px, 1fr) 56px 56px 56px 72px minmax(120px, 1fr);
+}
+
+.guards {
+  grid-template-columns: 48px minmax(160px, 1.4fr) 64px 64px minmax(120px, 1fr) 56px;
+}
+
+.guards > :nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cases {
+  grid-template-columns: 48px minmax(180px, 1fr) 48px 80px 80px 80px 120px 16px;
+}
+
+.header {
+  border-top: 0;
+  border-radius: var(--radius-8);
+  background: var(--surface-emphasis);
+}
+
+.num {
+  text-align: right;
+}
+
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--data-track);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--data-failure);
+}
+
+.rate {
+  text-align: right;
+  color: var(--text-secondary);
+}
+
+.rateBad {
+  color: var(--text-danger);
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--text-secondary);
+}
+
+.caseBtn {
+  width: 100%;
+  border: 0;
+  background: var(--surface-document);
+  text-align: left;
+  cursor: pointer;
+}
+
+.caseBtn:hover {
+  background: var(--surface-hover);
+}
+
+.selected {
+  box-shadow: inset 3px 0 0 var(--border-focus);
+  background: var(--surface-field);
+}
+
+.flushHead {
+  padding: 0 12px 12px;
+}
+
+.scroll {
+  overflow-x: auto;
+}

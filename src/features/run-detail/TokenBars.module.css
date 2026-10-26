@@ -1,14 +1,14 @@
 .card {
-  padding: 24px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 20px;
 }
 
 .bar {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .head {
@@ -18,9 +18,8 @@
 }
 
 .label {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.374px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .total {
@@ -29,21 +28,22 @@
 
 .track {
   display: flex;
-  gap: 2px;
-  height: 14px;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--data-track);
 }
 
 .seg {
-  border-radius: 4px;
+  height: 100%;
 }
 
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
   font-size: 12px;
-  letter-spacing: -0.12px;
-  color: var(--color-body);
+  color: var(--text-secondary);
 }
 
 .legendItem {

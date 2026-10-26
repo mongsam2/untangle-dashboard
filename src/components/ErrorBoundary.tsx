@@ -1,21 +1,19 @@
 import { Component, type ReactNode } from 'react';
-import { Notice } from './Page';
 
-interface Props {
-  children: ReactNode;
+interface State {
+  error: Error | null;
 }
 
-// 응답 모양이 예상과 달라 그리기에 실패해도 화면 전체가 비지 않게 한다.
-export class ErrorBoundary extends Component<Props, { error: Error | null }> {
-  state = { error: null as Error | null };
+export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
+  state: State = { error: null };
 
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: Error): State {
     return { error };
   }
 
   render() {
     if (this.state.error) {
-      return <Notice>화면을 그리지 못했어요. {this.state.error.message}</Notice>;
+      return <div style={{ padding: 24, color: 'var(--text-danger)' }}>화면을 그리지 못했어요. {this.state.error.message}</div>;
     }
     return this.props.children;
   }

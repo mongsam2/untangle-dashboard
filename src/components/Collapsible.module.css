@@ -1,25 +1,18 @@
 .padded {
-  padding: 24px;
   display: flex;
   flex-direction: column;
+  padding: 20px 24px 24px;
 }
 
 .flush {
   overflow: hidden;
 }
 
-.body {
-  display: flex;
-  flex-direction: column;
-}
-
 .head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  min-height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -28,20 +21,32 @@
 }
 
 .headFlush {
-  padding: 24px;
+  padding: 20px 24px;
 }
 
 .title {
-  font-size: 21px;
-  font-weight: 600;
-  letter-spacing: 0.231px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sub {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 400;
 }
 
 .chev {
-  color: var(--color-muted);
-  flex: none;
+  margin-left: auto;
+  color: var(--icon-secondary);
+  transition: transform 0.15s ease;
 }
 
 .chevOpen {
   transform: rotate(180deg);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
 }

@@ -1,30 +1,30 @@
 // 서버가 SQL로 계산할 요약·집계를 예시 데이터에서 같은 모양으로 계산한다.
 import type {
+  AgentStep,
   CaseStat,
-  ConversationListItem,
+  GuardrailStat,
   RunDetailResponse,
   RunFilters,
   RunListItem,
-  RunPath,
   RunStatus,
   RunSummaryStats,
+  SessionListItem,
   ShareStat,
   StatsResponse,
   ToolKind,
   ToolStat,
 } from '../types';
+import { GUARD_LAYER_ORDER, TOOL_KIND_ORDER, toolOrderIndex } from '../../lib/kinds';
+import { RUN_STATUS_ORDER } from '../../lib/status';
 
-const PATHS: RunPath[] = ['model', 'accept_direct', 'reject_direct'];
-const STATUSES: RunStatus[] = ['normal', 'tool_failed', 'outcome_unknown', 'error'];
 export const TOKEN_SAMPLE_LIMIT = 1000;
 export const CASE_RUN_LIMIT = 100;
-export const CONVERSATION_TURN_LIMIT = 100;
+export const SESSION_TURN_LIMIT = 100;
 
 export function matchesFilters(run: RunListItem, f: RunFilters): boolean {
   const source = f.source ?? 'all';
   if (source === 'test' && run.test_case_id === null) return false;
   if (source === 'real' && run.test_case_id !== null) return false;
-  if (f.path && run.path !== f.path) return false;
   if (f.status && run.status !== f.status) return false;
   return true;
 }
@@ -34,16 +34,17 @@ const sum = (xs: number[]): number => xs.reduce((a, x) => a + x, 0);
 const avg = (xs: number[]): number | null => (xs.length ? sum(xs) / xs.length : null);
 const totalTokens = (r: RunListItem) => r.input_tokens + r.output_tokens;
 const costs = (items: RunListItem[]) => items.map((r) => r.cost_usd).filter((c): c is number => c !== null);
+const durations = (items: RunListItem[]) => items.map((r) => r.duration_ms).filter((d): d is number => d !== null);
 
-/** 한 대화의 요청들(시작 순서)을 대화 목록 항목으로 합친다. 서버의 대화 집계 SQL과 같은 규칙이다. */
-export function conversationItem(runs: RunListItem[], userId: string): ConversationListItem {
+/** 한 세션의 턴들(시작 순서)을 세션 목록 항목으로 합친다. */
+export function sessionItem(runs: RunListItem[]): SessionListItem {
   const first = runs[0]!;
   const last = runs[runs.length - 1]!;
   const cost = costs(runs);
   const total = (pick: (r: RunListItem) => number) => sum(runs.map(pick));
   return {
-    conversation_id: first.conversation_id,
-    user_id: userId,
+    session_id: first.session_id,
+    test_case_id: runs.find((r) => r.test_case_id !== null)?.test_case_id ?? null,
     turns: runs.length,
     test_turns: runs.filter((r) => r.test_case_id !== null).length,
     attention_turns: runs.filter((r) => r.status !== 'normal').length,
@@ -54,10 +55,9 @@ export function conversationItem(runs: RunListItem[], userId: string): Conversat
     output_tokens: total((r) => r.output_tokens),
     reasoning_tokens: total((r) => r.reasoning_tokens),
     cost_usd: cost.length ? sum(cost) : null,
-    duration_ms: total((r) => r.duration_ms),
-    started_at: first.started_at,
+    first_started_at: first.started_at,
     last_started_at: last.started_at,
-    first_input_preview: first.input_preview,
+    last_status: last.status,
     last_input_preview: last.input_preview,
   };
 }
@@ -65,27 +65,33 @@ export function conversationItem(runs: RunListItem[], userId: string): Conversat
 export function summarize(items: RunListItem[]): RunSummaryStats {
   const count = (pred: (r: RunListItem) => boolean) => items.filter(pred).length;
   const cost = costs(items);
+  const dur = durations(items);
   return {
     runs: items.length,
     test_runs: count((r) => r.test_case_id !== null),
     real_runs: count((r) => r.test_case_id === null),
-    attention_runs: count((r) => r.status !== 'normal'),
-    model_runs: count((r) => r.path === 'model'),
+    normal_runs: count((r) => r.status === 'normal'),
     tool_failed_runs: count((r) => r.status === 'tool_failed'),
-    outcome_unknown_runs: count((r) => r.status === 'outcome_unknown'),
+    blocked_input_runs: count((r) => r.status === 'blocked_input'),
+    limit_exceeded_runs: count((r) => r.status === 'limit_exceeded'),
+    output_rejected_runs: count((r) => r.status === 'output_rejected'),
     error_runs: count((r) => r.status === 'error'),
-    avg_duration_ms: avg(items.map((r) => r.duration_ms)),
-    max_duration_ms: items.length ? Math.max(...items.map((r) => r.duration_ms)) : null,
-    avg_model_calls: avg(items.map((r) => r.model_calls)),
+    model_runs: count((r) => r.model_calls > 0),
     total_model_calls: sum(items.map((r) => r.model_calls)),
-    avg_tool_calls: avg(items.map((r) => r.tool_calls)),
+    avg_model_calls: avg(items.map((r) => r.model_calls)),
     total_tool_calls: sum(items.map((r) => r.tool_calls)),
-    avg_total_tokens: avg(items.map(totalTokens)),
+    avg_tool_calls: avg(items.map((r) => r.tool_calls)),
+    total_corrections: sum(items.map((r) => r.corrections)),
     total_tokens: sum(items.map(totalTokens)),
+    avg_total_tokens: avg(items.map(totalTokens)),
     total_input_tokens: sum(items.map((r) => r.input_tokens)),
     total_cached_tokens: sum(items.map((r) => r.cached_tokens)),
+    total_output_tokens: sum(items.map((r) => r.output_tokens)),
+    total_reasoning_tokens: sum(items.map((r) => r.reasoning_tokens)),
     total_cost_usd: cost.length ? sum(cost) : null,
     avg_cost_usd: avg(cost),
+    avg_duration_ms: avg(dur),
+    max_duration_ms: dur.length ? Math.max(...dur) : null,
   };
 }
 
@@ -96,9 +102,11 @@ export function caseStat(id: string, items: RunListItem[]): CaseStat {
     runs: items.length,
     normal: count('normal'),
     tool_failed: count('tool_failed'),
-    outcome_unknown: count('outcome_unknown'),
+    blocked_input: count('blocked_input'),
+    limit_exceeded: count('limit_exceeded'),
+    output_rejected: count('output_rejected'),
     error: count('error'),
-    avg_duration_ms: avg(items.map((r) => r.duration_ms)),
+    avg_duration_ms: avg(durations(items)),
     avg_model_calls: avg(items.map((r) => r.model_calls)),
     avg_tool_calls: avg(items.map((r) => r.tool_calls)),
     avg_total_tokens: avg(items.map(totalTokens)),
@@ -111,53 +119,52 @@ function shares<T extends string>(values: T[], order: T[]): ShareStat[] {
   const total = values.length;
   return order
     .map((v) => ({ value: v, count: values.filter((x) => x === v).length }))
-    .filter((s) => s.count > 0)
-    .map((s) => ({ ...s, ratio: total ? s.count / total : 0 }));
+    .filter((x) => x.count > 0)
+    .map((x) => ({ ...x, ratio: total ? x.count / total : 0 }));
 }
 
-export function computeStats(details: RunDetailResponse[]): StatsResponse {
-  const runs = details.map((d) => d.run);
-  const tools = new Map<string, { kind: ToolKind; calls: number; failed: number; unknown: number; ms: number }>();
-  const kinds: ToolKind[] = [];
-  for (const d of details) {
-    for (const s of d.steps) {
-      if (s.kind !== 'tool' || !s.tool_name) continue;
-      const kind = s.tool_kind ?? 'query';
-      kinds.push(kind);
-      const t = tools.get(s.tool_name) ?? { kind, calls: 0, failed: 0, unknown: 0, ms: 0 };
-      t.calls++;
-      t.ms += s.duration_ms;
-      if (s.status === 'failed') t.failed++;
-      if (s.status === 'unknown') t.unknown++;
-      tools.set(s.tool_name, t);
-    }
+function toolStats(steps: AgentStep[]): ToolStat[] {
+  const byName = new Map<string, AgentStep[]>();
+  for (const s of steps) {
+    if (s.kind !== 'tool' || !s.tool_name) continue;
+    byName.set(s.tool_name, [...(byName.get(s.tool_name) ?? []), s]);
   }
-  const toolStats: ToolStat[] = [...tools.entries()]
-    .map(([name, t]) => ({
+  return [...byName.entries()]
+    .map(([name, calls]) => ({
       tool_name: name,
-      tool_kind: t.kind,
-      calls: t.calls,
-      failed: t.failed,
-      unknown: t.unknown,
-      avg_duration_ms: t.calls ? t.ms / t.calls : null,
+      tool_kind: (calls[0]!.tool_kind ?? 'query') as ToolKind,
+      calls: calls.length,
+      failed: calls.filter((c) => c.status === 'failed').length,
+      avg_duration_ms: avg(calls.map((c) => c.duration_ms)),
     }))
-    .sort((a, b) => b.calls - a.calls || a.tool_name.localeCompare(b.tool_name));
+    .sort((a, b) => b.calls - a.calls || toolOrderIndex(a.tool_name) - toolOrderIndex(b.tool_name));
+}
 
-  // 서버처럼 케이스 ID 순이다.
-  const caseIds = [...new Set(runs.flatMap((r) => (r.test_case_id ? [r.test_case_id] : [])))].sort();
-  const cases = caseIds.map((id) => caseStat(id, runs.filter((r) => r.test_case_id === id)));
+function guardrailStats(steps: AgentStep[]): GuardrailStat[] {
+  const map = new Map<string, GuardrailStat>();
+  for (const s of steps) {
+    if (s.kind !== 'guardrail' || !s.guardrail_layer || !s.guardrail_name) continue;
+    const key = s.guardrail_layer + '/' + s.guardrail_name;
+    const cur = map.get(key) ?? { layer: s.guardrail_layer, name: s.guardrail_name, checks: 0, blocked: 0 };
+    cur.checks += 1;
+    if (s.passed === false) cur.blocked += 1;
+    map.set(key, cur);
+  }
+  return [...map.values()].sort((a, b) => GUARD_LAYER_ORDER.indexOf(a.layer) - GUARD_LAYER_ORDER.indexOf(b.layer) || b.checks - a.checks || a.name.localeCompare(b.name));
+}
 
+export function computeStats(data: RunDetailResponse[]): StatsResponse {
+  const runs = data.map((d) => d.run);
+  const steps = data.flatMap((d) => d.steps);
+  const toolSteps = steps.filter((s) => s.kind === 'tool');
+  const caseIds = [...new Set(runs.map((r) => r.test_case_id).filter((id): id is string => id !== null))].sort();
   return {
-    tools: toolStats,
-    // 서버는 tool_kind 문자열 순으로 준다.
-    tool_kinds: shares(kinds, ['mutation', 'query']),
-    // 서버처럼 모델을 부른 요청만, 최근 1000건까지 보낸다(runs는 이미 최신순이다).
-    token_samples: runs
-      .filter((r) => r.model_calls > 0)
-      .slice(0, TOKEN_SAMPLE_LIMIT)
-      .map(totalTokens),
-    paths: shares(runs.map((r) => r.path), PATHS),
-    statuses: shares(runs.map((r) => r.status), STATUSES),
-    cases,
+    tools: toolStats(steps),
+    tool_kinds: shares(toolSteps.map((s) => s.tool_kind ?? 'query'), TOOL_KIND_ORDER),
+    // 모델을 부른 실행만, 최신순 1,000개.
+    token_samples: runs.filter((r) => r.model_calls > 0).slice(0, TOKEN_SAMPLE_LIMIT).map(totalTokens),
+    statuses: shares(runs.map((r) => r.status), RUN_STATUS_ORDER),
+    guardrails: guardrailStats(steps),
+    cases: caseIds.map((id) => caseStat(id, runs.filter((r) => r.test_case_id === id))),
   };
 }

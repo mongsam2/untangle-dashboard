@@ -23,6 +23,7 @@ export function ToolDonuts({ donuts }: { donuts: Donut[] }) {
                   <span className={`mono ${s.pct}`}>{it.pct}</span>
                 </div>
               ))}
+              {g.items.length === 0 && <span className={s.count}>호출 없음</span>}
             </div>
           </div>
         </div>
