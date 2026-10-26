@@ -1,6 +1,6 @@
 /*
  * 예시 데이터. 설계 문서(`docs/tangle/`)의 검증 사례와 도구 12개를 따라 실행 기록을 만든다.
- * 테스트 케이스 18개 × 3회 + 실제 요청 세션 4개. 숫자는 고정 시드로 뽑아 실행할 때마다 같다.
+ * 테스트 케이스 19개 × 3회 + 실제 요청 세션 4개. 숫자는 고정 시드로 뽑아 실행할 때마다 같다.
  */
 import type {
   AgentStep,
@@ -114,11 +114,11 @@ const guard = (layer: GuardrailLayer, name: string, passed = true, note: string 
   duration_ms: between(1, 6),
 });
 
-/** 입력 가드레일 묶음. 모델을 부르기 전에 모두 끝난다. */
-const inputGuards = (answers = false): StepSpec[] => [
-  guard('input', 'identity', true, '프록시 신원·세션·턴 연결'),
-  guard('input', answers ? 'answer_bundle' : 'length', true, answers ? '질문 묶음 전체 답변 확인' : '4,000자 이내'),
-  guard('input', 'ownership', true, '선택 항목·멘션 소유권 확인'),
+/** 입력 가드레일. 실제 서버는 지정 항목이 있으면 소유권을, 질문 답변이면 답변 묶음을 검사해 남긴다.
+ *  시나리오에 입력 가드레일 단계가 없으면 조립할 때 입력 모양에 맞춰 앞에 붙인다. */
+const inputGuards = (input: RunSpec['input']): StepSpec[] => [
+  ...(input.targets?.length ? [guard('input', 'target_ownership')] : []),
+  ...(input.kind === 'answers' ? [guard('input', 'answer_bundle')] : []),
 ];
 
 // 가격: 입력 $1.25/M, 캐시 입력 $0.125/M, 출력 $10/M (예시값)
@@ -176,23 +176,29 @@ const toolFail = (name: string, args: Record<string, unknown>, code: string, mes
   duration_ms: jitter(30, 0.4),
 });
 
-/** 도구 호출 전 인자 검사와 호출 뒤 결과 정리. 도구 가드레일 층에 속한다. */
-const toolGuards = (name: string, argsPassed = true, note: string | null = null): StepSpec[] =>
-  argsPassed ? [guard('tool', name + '.arguments', true, 'strict 스키마·소유권·계획 규칙')] : [guard('tool', name + '.arguments', false, note)];
+// 도구·출력 가드레일은 실제 서버(untangle-ai-v2 `trace/recorder.py`의 `tool_checks`, `agent/output.py`의
+// `OUTPUT_CHECKS`)와 같은 이름·규칙으로 남긴다.
 
-const resultGuard = (name: string): StepSpec => guard('tool', name + '.result', true, '노출 차단·실패 구분·크기');
+/** 도구 호출 전 인자 검사. 막히면 note에 `코드: 설명`이 남고, 실행하지 않았으므로 결과 검사가 없다. */
+const toolGuards = (name: string, blocked: string | null = null): StepSpec[] => [guard('tool', name + '.arguments', blocked === null, blocked)];
 
-const outputGuards = (passed = true, note: string | null = null): StepSpec[] => [
-  guard('output', 'structure', true, 'answer·ask·정보 카드 중 하나 이상'),
-  guard('output', 'length', true, '질문 200자·선택지 40자 이내(UTF-16)'),
-  guard('output', 'references', passed, note ?? '참조가 현재 턴의 유효한 제안·항목'),
-];
+/** 도구 호출 뒤 결과 검사. DB 장애(SOURCE_UNAVAILABLE)도 결과 검사는 통과다. */
+const resultGuard = (name: string): StepSpec => guard('tool', name + '.result');
 
-/** 질문·선택지 문구가 백엔드 길이 제약을 넘긴 출력. 구조는 통과하고 길이에서 막힌다. */
-const outputLengthGuards = (note: string): StepSpec[] => [
-  guard('output', 'structure', true, 'answer·ask·정보 카드 중 하나 이상'),
-  guard('output', 'length', false, note),
-];
+const OUTPUT_CHECKS = ['structure', 'length', 'references', 'card_count', 'missing_cards'] as const;
+
+/** 통과한 최종 출력은 다섯 검사가 모두 통과로 남는다. */
+const outputGuards = (): StepSpec[] => OUTPUT_CHECKS.map((name) => guard('output', name));
+
+/** 거절된 최종 출력은 걸린 검사 하나만 남는다. 검증이 처음 어긋난 곳에서 멈추기 때문이다. */
+const outputBlocked = (name: (typeof OUTPUT_CHECKS)[number], reason: string): StepSpec[] => [guard('output', name, false, reason)];
+
+// 탱글 서버의 출력 거절 사유 문장(`agent/output.py`의 REASONS). 보정 요청 단계의 note에도 같은 문장이 남는다.
+const REASON = {
+  unknown_item_card_ref: 'item_card_refs에 쓸 수 없는 참조가 있다(실패·무변경·모르는 참조)',
+  question_length: 'questions[].text는 200자 이내여야 한다',
+  unreferenced_item_card: "이번 턴에 도구로 준비한 item_card_ref를 item_card_refs에 담지 않았다. 추가·변경했다고 말하려면 그 카드를 함께 보내야 한다",
+} as const;
 
 const server = (decision: ServerDecision, note: string): StepSpec => ({ kind: 'server', decision, note, duration_ms: between(3, 18) });
 
@@ -246,7 +252,9 @@ const isoLocal = (ms: number) => new Date(ms + 9 * 3600000).toISOString().replac
 function assemble(spec: RunSpec): RunDetailResponse {
   const turnId = uuid();
   let t = spec.startedAt;
-  const steps: AgentStep[] = spec.steps.map((s, i) => {
+  const hasInput = spec.steps.some((s) => s.kind === 'guardrail' && s.guardrail_layer === 'input');
+  const specSteps = hasInput ? spec.steps : [...inputGuards(spec.input), ...spec.steps];
+  const steps: AgentStep[] = specSteps.map((s, i) => {
     const step: AgentStep = { ...blank(), ...s, seq: i + 1, started_at: iso(t) };
     t += s.duration_ms + between(2, 12);
     return step;
@@ -313,12 +321,11 @@ const C: Record<string, Scenario> = {
       input: text('엄마 생일 선물 사야 돼'),
       status: 'normal',
       steps: [
-        ...inputGuards(),
         model({ input: 5200, output: 260, ko: '새 할 일 요청이다. 조회 없이 제목을 사용자 표현대로 "엄마 생일 선물 사기"로 준비한다. 소요시간은 말하지 않았으니 30분으로 추정한다.', en: 'A new todo request. Prepare it without a lookup, keeping the title as the user phrased it, and estimate 30 minutes since none was given.', next: 'propose_create_todo' }),
         ...toolGuards('propose_create_todo'),
-        tool('propose_create_todo', { title: '엄마 생일 선물 사기', estimated_minutes: 30, memo: null, subtasks: [] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
+        tool('propose_create_todo', { title: '엄마 생일 선물 사기', estimated_minutes: 30, memo: null, subtasks: [] }, { item_card_ref: 'pr_1', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
         resultGuard('propose_create_todo'),
-        model({ input: 5600, output: 180, ko: '카드 하나로 충분하다. 짧은 안내와 함께 제안 참조를 채택한다.', en: 'One card is enough. Adopt the proposal reference with a short note.', next: 'final_response' }),
+        model({ input: 5600, output: 180, ko: '카드 하나로 충분하다. 추가해뒀다고 짧게 말하고 카드 참조를 담는다.', en: 'One card is enough. Say it was added and include the card reference.', next: 'final_response' }),
         ...outputGuards(),
         server('cards_assembled', '제안 카드 1개를 조립하고 응답을 저장했다.'),
       ],
@@ -337,7 +344,6 @@ const C: Record<string, Scenario> = {
     input: text('보고서 관련 할 일 뭐 있지?'),
     status: 'normal',
     steps: [
-      ...inputGuards(),
       model({ input: 5100, output: 150, ko: '제목에 "보고서"가 들어간 미완료 할 일을 찾는다.', en: 'Search open todos whose title contains "보고서".', next: 'search_todos' }),
       ...toolGuards('search_todos'),
       tool('search_todos', { query: '보고서', completion: 'open', limit: 20, cursor: null }, todoSearchResult([ITEMS.report]), 35),
@@ -359,16 +365,15 @@ const C: Record<string, Scenario> = {
       input: text(`보고서 초안 ${mention(ITEMS.report)} 내일 10시로 옮겨줘`, [target(ITEMS.report)]),
       status: 'normal',
       steps: [
-        ...inputGuards(),
         model({ input: 5400, output: 200, ko: '멘션된 항목의 현재 상태를 확인한다.', en: 'Fetch the mentioned item to confirm its current state.', next: 'get_items' }),
         ...toolGuards('get_items'),
         tool('get_items', { item_ids: [ITEMS.report.id] }, { items: [before], unavailable_ids: [] }, 30),
         resultGuard('get_items'),
         model({ input: 6100, output: 240, ko: '할 일이므로 계획으로 옮기는 제안을 준비한다. 내일은 2026-10-24, 시각 10:00.', en: 'It is a todo; prepare a move to plan for 2026-10-24 10:00.', next: 'propose_move_todo_to_plan' }),
         ...toolGuards('propose_move_todo_to_plan'),
-        tool('propose_move_todo_to_plan', { item_id: ITEMS.report.id, date: '2026-10-24', time: '10:00', reminder_minutes_before: null }, { proposal_ref: 'pr_1', preview: { proposal_type: 'move_todo_to_plan', target_item_id: ITEMS.report.id, before, after } }),
+        tool('propose_move_todo_to_plan', { item_id: ITEMS.report.id, date: '2026-10-24', time: '10:00', reminder_minutes_before: null }, { item_card_ref: 'pr_1', preview: { proposal_type: 'move_todo_to_plan', target_item_id: ITEMS.report.id, before, after } }),
         resultGuard('propose_move_todo_to_plan'),
-        model({ input: 6500, output: 170, ko: '제안 참조를 채택하고 안내 문구를 쓴다.', en: 'Adopt the reference and write the prompt text.', next: 'final_response' }),
+        model({ input: 6500, output: 170, ko: '카드 참조를 담고 안내 문장을 쓴다.', en: 'Include the card reference and write the note.', next: 'final_response' }),
         ...outputGuards(),
         server('cards_assembled', '이동 카드 1개를 조립했다.'),
       ],
@@ -392,7 +397,6 @@ const C: Record<string, Scenario> = {
     input: text('8시에 운동'),
     status: 'normal',
     steps: [
-      ...inputGuards(),
       model({ input: 5000, output: 190, ko: '8시가 오전인지 오후인지 알 수 없다. 추측하지 않고 질문한다.', en: '8 o\'clock is ambiguous; ask instead of guessing.', next: 'final_response' }),
       ...outputGuards(),
       server('cards_assembled', '질문 1개를 저장했다. 말풍선이 비어 기본 문장을 채웠다. 선택지는 토큰으로 서명한다.'),
@@ -413,7 +417,6 @@ const C: Record<string, Scenario> = {
       input: text('오늘 뭐부터 할까?'),
       status: 'normal',
       steps: [
-        ...inputGuards(),
         model({ input: 5000, output: 140, ko: '오늘 계획과 미완료 할 일을 한 장으로 보여주는 브리핑을 만든다.', en: 'Build the today briefing card.', next: 'get_today_briefing' }),
         ...toolGuards('get_today_briefing'),
         tool('get_today_briefing', { date: '2026-10-23' }, card, 55),
@@ -433,7 +436,6 @@ const C: Record<string, Scenario> = {
     input: text('파이썬으로 피보나치 함수 짜줘'),
     status: 'normal',
     steps: [
-      ...inputGuards(),
       model({ input: 4900, output: 160, ko: '할 일·계획과 상관없는 코드 작성 요청이다. 짧게 거절하고 할 일로 적어둘지 묻는다.', en: 'Off-topic coding request. Decline briefly and offer to save it as a todo.', next: 'final_response' }),
       ...outputGuards(),
       server('cards_assembled', '답변과 질문 1개를 저장했다.'),
@@ -452,7 +454,6 @@ const C: Record<string, Scenario> = {
     input: text('내일 할 일 정리해줘. ' + '아주 긴 메모 '.repeat(40) + '… (4,312자)'),
     status: 'blocked_input',
     steps: [
-      guard('input', 'identity', true, '프록시 신원·세션·턴 연결'),
       guard('input', 'length', false, 'input.text 4,312자 > 4,000자'),
       server('input_blocked', '모델을 부르지 않고 422 invalid_request로 거절했다.'),
     ],
@@ -466,9 +467,7 @@ const C: Record<string, Scenario> = {
     input: text(`이거 ${mention(ITEMS.mail)} 내일로 옮겨줘`, [{ category: 'todo', id: '0f0f0f0f-0000-4000-8000-00000000beef' }]),
     status: 'blocked_input',
     steps: [
-      guard('input', 'identity', true, '프록시 신원·세션·턴 연결'),
-      guard('input', 'length', true, '4,000자 이내'),
-      guard('input', 'ownership', false, 'selected_targets에 현재 사용자 소유가 아닌 ID. 존재 여부는 밝히지 않음'),
+      guard('input', 'target_ownership', false, 'selected_targets에 소유하지 않은 항목이 있다'),
       server('input_blocked', '모델을 부르지 않고 403 forbidden으로 거절했다.'),
     ],
     response: (_s, t) => errorResponse(t, 'forbidden', '요청한 항목에 접근할 수 없어요.'),
@@ -481,7 +480,6 @@ const C: Record<string, Scenario> = {
     input: text('이번 주 계획 보여줘'),
     status: 'tool_failed',
     steps: [
-      ...inputGuards(),
       model({ input: 5000, output: 170, ko: '이번 주(10/20~10/26) 계획을 날짜 범위로 조회한다.', en: 'Search plans in this week\'s date range.', next: 'search_plans' }),
       ...toolGuards('search_plans'),
       toolFail('search_plans', { query: null, date_range: { from: '2026-10-20', to: '2026-10-26' }, completion: 'all', limit: 20, cursor: null }, 'SOURCE_UNAVAILABLE', '동기화 사본을 읽지 못했어요.'),
@@ -502,13 +500,12 @@ const C: Record<string, Scenario> = {
       input: text('운동 10분 전에 알려줘'),
       status: 'tool_failed',
       steps: [
-        ...inputGuards(),
         model({ input: 5200, output: 180, ko: '"운동" 계획을 찾는다.', en: 'Find the plan named 운동.', next: 'search_plans' }),
         ...toolGuards('search_plans'),
         tool('search_plans', { query: '운동', date_range: null, completion: 'open', limit: 20, cursor: null }, { items: [before], total_count: 1, next_cursor: null }, 32),
         resultGuard('search_plans'),
         model({ input: 6000, output: 220, ko: '알림만 바꾸면 된다고 보고 reminder_minutes_before=10으로 변경을 준비한다.', en: 'Prepare an update setting the reminder to 10 minutes.', next: 'propose_update_plan' }),
-        ...toolGuards('propose_update_plan', false, '시각이 없는 계획에 알림을 둘 수 없음 (날짜 → 시각 → 알림)'),
+        ...toolGuards('propose_update_plan', 'INVALID_STATE: 시각이 없는 계획에는 알림을 둘 수 없어요.'),
         toolFail('propose_update_plan', { item_id: ITEMS.workout.id, changes: [{ field: 'reminder_minutes_before', value: 10 }] }, 'INVALID_STATE', '시각이 없는 계획에는 알림을 둘 수 없어요.', [{ path: 'changes[0].value', message: 'time이 null이면 reminder_minutes_before도 null이어야 해요.' }]),
         server('correction_requested', '업무 규칙 위반. 사용자 의도를 바꾸지 않는 범위에서 1회 보정을 시킨다.'),
         model({ input: 6600, output: 260, ko: '시각이 없어서 알림을 둘 수 없다. 시각을 먼저 정해야 하므로 사용자에게 묻는다.', en: 'There is no time, so a reminder is impossible. Ask the user for a time first.', next: 'final_response' }),
@@ -524,7 +521,7 @@ const C: Record<string, Scenario> = {
   },
   // 왕복 12회 초과
   C11: (sessionId, startedAt) => {
-    const steps: StepSpec[] = [...inputGuards()];
+    const steps: StepSpec[] = [];
     const todos = [ITEMS.report, ITEMS.gift, ITEMS.laundry, ITEMS.portfolio, ITEMS.study, ITEMS.mail];
     for (let i = 0; i < 12; i += 1) {
       const it = todos[i % todos.length]!;
@@ -533,7 +530,7 @@ const C: Record<string, Scenario> = {
       steps.push(tool('get_items', { item_ids: [it.id] }, { items: [plain(it)], unavailable_ids: [] }, 28));
       steps.push(resultGuard('get_items'));
     }
-    steps.push(guard('limit', 'model_round_trips', false, '모델 왕복 12회 도달'));
+    steps.push(guard('limit', 'model_turns', false));
     steps.push(server('limit_exceeded', '준비 중이던 카드는 버리고 고정 안내로 끝냈다.'));
     return {
       caseId: 'C11',
@@ -553,17 +550,16 @@ const C: Record<string, Scenario> = {
     input: text('빨래 지워줘'),
     status: 'output_rejected',
     steps: [
-      ...inputGuards(),
       model({ input: 5000, output: 160, ko: '"빨래" 할 일을 찾는다.', en: 'Search for the laundry todo.', next: 'search_todos' }),
       ...toolGuards('search_todos'),
       tool('search_todos', { query: '빨래', completion: 'open', limit: 20, cursor: null }, todoSearchResult([ITEMS.laundry]), 30),
       resultGuard('search_todos'),
-      model({ input: 5800, output: 200, ko: '삭제 제안을 준비하지 않고 참조 "pr_1"을 바로 적었다.', en: 'Wrote reference "pr_1" without preparing a deletion proposal.', next: 'final_response' }),
-      ...outputGuards(false, 'proposal_refs에 이번 턴에 준비되지 않은 참조 pr_1'),
-      server('correction_requested', '존재하지 않는 참조. 1회 보정을 시킨다.'),
+      model({ input: 5800, output: 200, ko: '삭제 카드를 준비하지 않고 카드 참조 "pr_1"을 바로 적었다.', en: 'Wrote card reference "pr_1" without preparing a deletion card.', next: 'final_response' }),
+      ...outputBlocked('references', REASON.unknown_item_card_ref),
+      server('correction_requested', REASON.unknown_item_card_ref),
       model({ input: 6200, output: 190, ko: '다시 같은 참조를 적었다.', en: 'Wrote the same unknown reference again.', next: 'final_response' }),
-      ...outputGuards(false, '보정 뒤에도 같은 참조 오류'),
-      server('output_rejected', '응답을 공개하지 않고 502 output_rejected로 끝냈다.'),
+      ...outputBlocked('references', REASON.unknown_item_card_ref),
+      server('output_rejected', 'unknown_item_card_ref'),
     ],
     response: (_s, t) => errorResponse(t, 'output_rejected', '답변을 만들다 문제가 생겼어요. 다시 말해 줄래요?'),
   }),
@@ -577,7 +573,6 @@ const C: Record<string, Scenario> = {
       return { before, after, p: proposal('move_todo_to_plan', before, after, [{ op: 'move', category: 'plan', date: dates[i]!, time: null, reminder_minutes_before: null }]) };
     });
     const steps: StepSpec[] = [
-      ...inputGuards(),
       model({ input: 5300, output: 210, ko: '미완료 할 일 전체를 조회한다.', en: 'List all open todos.', next: 'search_todos' }),
       ...toolGuards('search_todos'),
       tool('search_todos', { query: null, completion: 'open', limit: 20, cursor: null }, todoSearchResult(todos), 38),
@@ -586,7 +581,7 @@ const C: Record<string, Scenario> = {
     ];
     for (const { before, after } of proposals) {
       steps.push(...toolGuards('propose_move_todo_to_plan'));
-      steps.push(tool('propose_move_todo_to_plan', { item_id: before.id, date: after.date, time: null, reminder_minutes_before: null }, { proposal_ref: 'pr_' + before.id!.slice(0, 4), preview: { proposal_type: 'move_todo_to_plan', target_item_id: before.id, before, after } }));
+      steps.push(tool('propose_move_todo_to_plan', { item_id: before.id, date: after.date, time: null, reminder_minutes_before: null }, { item_card_ref: 'pr_' + before.id!.slice(0, 4), preview: { proposal_type: 'move_todo_to_plan', target_item_id: before.id, before, after } }));
       steps.push(resultGuard('propose_move_todo_to_plan'));
     }
     steps.push(model({ input: 8100, output: 240, ko: '네 개 참조를 채택하고 남은 한 개는 다음에 이어서 하겠다고 알린다.', en: 'Adopt four references and mention the remaining one.', next: 'final_response' }));
@@ -619,14 +614,13 @@ const C: Record<string, Scenario> = {
       input: text(`${mention(ITEMS.report)} 뒤에 초안 쓰기랑 검토 받기 추가해줘`, [target(ITEMS.report)]),
       status: 'normal',
       steps: [
-        ...inputGuards(),
         model({ input: 5300, output: 170, ko: '멘션된 할 일의 하위 작업을 확인한다.', en: 'Read the subtasks of the mentioned todo.', next: 'get_items' }),
         ...toolGuards('get_items'),
         tool('get_items', { item_ids: [ITEMS.report.id] }, { items: [before], unavailable_ids: [] }, 28),
         resultGuard('get_items'),
         model({ input: 6000, output: 300, ko: '기존 하위 둘은 ID를 유지하고 새 둘은 null ID로 최종 목록을 만든다.', en: 'Keep existing subtask IDs and append two new ones with null IDs.', next: 'propose_update_todo' }),
         ...toolGuards('propose_update_todo'),
-        tool('propose_update_todo', { item_id: ITEMS.report.id, changes: [{ field: 'subtasks', value: after.subtasks.map((s) => ({ subtask_id: s.id, title: s.title })) }] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'update_todo', target_item_id: ITEMS.report.id, before, after } }),
+        tool('propose_update_todo', { item_id: ITEMS.report.id, changes: [{ field: 'subtasks', value: after.subtasks.map((s) => ({ subtask_id: s.id, title: s.title })) }] }, { item_card_ref: 'pr_1', preview: { proposal_type: 'update_todo', target_item_id: ITEMS.report.id, before, after } }),
         resultGuard('propose_update_todo'),
         model({ input: 6700, output: 160, ko: '변경 카드 참조를 채택한다.', en: 'Adopt the update card.', next: 'final_response' }),
         ...outputGuards(),
@@ -649,10 +643,9 @@ const C: Record<string, Scenario> = {
       input: answers(1),
       status: 'normal',
       steps: [
-        ...inputGuards(true),
         model({ input: 5600, output: 200, ko: '오후 8시로 답했다. 내일 20:00 계획 생성을 준비한다. 운동이니 45분으로 추정한다.', en: 'User chose 8 PM. Prepare a plan for tomorrow 20:00 and estimate 45 minutes for a workout.', next: 'propose_create_plan' }),
         ...toolGuards('propose_create_plan'),
-        tool('propose_create_plan', { title: '운동', date: '2026-10-24', time: '20:00', reminder_minutes_before: null, estimated_minutes: 45, memo: null, subtasks: [] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'create_plan', target_item_id: null, before: null, after } }),
+        tool('propose_create_plan', { title: '운동', date: '2026-10-24', time: '20:00', reminder_minutes_before: null, estimated_minutes: 45, memo: null, subtasks: [] }, { item_card_ref: 'pr_1', preview: { proposal_type: 'create_plan', target_item_id: null, before: null, after } }),
         resultGuard('propose_create_plan'),
         model({ input: 6000, output: 150, ko: '생성 카드 참조를 채택한다.', en: 'Adopt the create card.', next: 'final_response' }),
         ...outputGuards(),
@@ -670,7 +663,6 @@ const C: Record<string, Scenario> = {
     input: text('다 그만두고 싶다 진짜 죽고 싶어'),
     status: 'normal',
     steps: [
-      ...inputGuards(),
       model({ input: 5000, output: 240, ko: '위험 신호다. 할 일 정리를 멈추고 카드 없이 걱정을 전하고 도움받을 곳을 안내한다.', en: 'Crisis signal. Stop task handling, no cards, express concern and give the helpline.', next: 'final_response' }),
       ...outputGuards(),
       server('cards_assembled', '카드 없이 답변만 저장했다.'),
@@ -685,14 +677,13 @@ const C: Record<string, Scenario> = {
     input: text('포트폴리오 정리 언제 할지 정해줘'),
     status: 'normal',
     steps: [
-      ...inputGuards(),
       model({ input: 5100, output: 180, ko: '"포트폴리오" 할 일을 찾는다.', en: 'Search for the portfolio todo.', next: 'search_todos' }),
       ...toolGuards('search_todos'),
       tool('search_todos', { query: '포트폴리오', completion: 'open', limit: 20, cursor: null }, todoSearchResult([ITEMS.portfolio]), 30),
       resultGuard('search_todos'),
       model({ input: 5900, output: 420, ko: '날짜를 정해야 한다. 메모 내용까지 풀어 쓴 긴 질문으로 언제 할지 묻는다.', en: 'A date is needed. Ask when, in a long question that spells out the memo.', next: 'final_response' }),
-      ...outputLengthGuards('questions[].text는 200자 이내여야 한다'),
-      server('correction_requested', 'questions[].text는 200자 이내여야 한다'),
+      ...outputBlocked('length', REASON.question_length),
+      server('correction_requested', REASON.question_length),
       model({ input: 6500, output: 210, ko: '질문을 한 문장으로 줄이고 선택지도 짧게 다시 쓴다.', en: 'Shorten the question to one sentence and keep options brief.', next: 'final_response' }),
       ...outputGuards(),
       server('cards_assembled', '보정 뒤 질문 1개를 저장했다. 말풍선이 비어 기본 문장을 채웠다.'),
@@ -713,14 +704,13 @@ const C: Record<string, Scenario> = {
       input: text('치과 예약해야 됨'),
       status: 'tool_failed',
       steps: [
-        ...inputGuards(),
         model({ input: 5200, output: 220, ko: '새 할 일 요청이다. 소요시간을 비운 채 생성을 준비한다.', en: 'A new todo request. Prepare the creation without an estimated duration.', next: 'propose_create_todo' }),
-        ...toolGuards('propose_create_todo', false, 'estimated_minutes는 필수 양의 정수'),
+        ...toolGuards('propose_create_todo', 'INVALID_ARGUMENT: 도구 인자가 계약과 달라요.'),
         toolFail('propose_create_todo', { title: '치과 예약하기', memo: null, subtasks: [] }, 'INVALID_ARGUMENT', '도구 인자가 계약과 달라요.', [{ path: 'estimated_minutes', message: 'Field required' }]),
         server('correction_requested', '도구 인자 오류. 소요시간을 추정해 다시 부르게 한다.'),
         model({ input: 5800, output: 230, ko: '전화 한 통이면 되니 10분으로 추정해 다시 준비한다.', en: 'A phone call takes about 10 minutes; retry with that estimate.', next: 'propose_create_todo' }),
         ...toolGuards('propose_create_todo'),
-        tool('propose_create_todo', { title: '치과 예약하기', estimated_minutes: 10, memo: null, subtasks: [] }, { proposal_ref: 'pr_2', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
+        tool('propose_create_todo', { title: '치과 예약하기', estimated_minutes: 10, memo: null, subtasks: [] }, { item_card_ref: 'pr_2', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
         resultGuard('propose_create_todo'),
         model({ input: 6300, output: 160, ko: '생성 카드 참조를 채택한다.', en: 'Adopt the create card.', next: 'final_response' }),
         ...outputGuards(),
@@ -728,6 +718,31 @@ const C: Record<string, Scenario> = {
       ],
       response: (s, t) =>
         chat(s, t, { answer: ANSWER('치과 예약, 10분짜리 할 일로 추가해뒀어.'), ask: { type: 'proposal', text: null, questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] } }),
+    };
+  },
+  // 준비한 카드를 빠뜨린 출력 → 보정 1회
+  C19: (sessionId, startedAt) => {
+    const after = item({ id: null, category: 'todo', title: '장보기', estimated_minutes: 30 });
+    return {
+      caseId: 'C19',
+      sessionId,
+      startedAt,
+      input: text('장보기 할 일로 추가해줘, 30분'),
+      status: 'normal',
+      steps: [
+        model({ input: 5100, output: 200, ko: '날짜 없는 새 할 일이다. 30분짜리 생성 카드를 준비한다.', en: 'A new undated todo. Prepare a 30-minute create card.', next: 'propose_create_todo' }),
+        ...toolGuards('propose_create_todo'),
+        tool('propose_create_todo', { title: '장보기', estimated_minutes: 30, memo: null, subtasks: [] }, { item_card_ref: 'pr_1', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
+        resultGuard('propose_create_todo'),
+        model({ input: 5700, output: 150, ko: '추가해뒀다고 답하면서 카드 참조를 비웠다.', en: 'Said it was added but left the card references empty.', next: 'final_response' }),
+        ...outputBlocked('missing_cards', REASON.unreferenced_item_card),
+        server('correction_requested', REASON.unreferenced_item_card),
+        model({ input: 6300, output: 160, ko: '준비한 카드 참조를 담아 다시 쓴다.', en: 'Rewrite with the prepared card reference.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '보정 뒤 생성 카드 1개를 조립하고 응답을 저장했다.'),
+      ],
+      response: (s, t) =>
+        chat(s, t, { answer: ANSWER('장보기, 30분짜리 할 일로 추가해뒀어.'), ask: { type: 'proposal', text: null, questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] } }),
     };
   },
 };
@@ -751,7 +766,7 @@ const realScenarios: ((sessionId: string, startedAt: number) => RunSpec)[] = [
     startedAt: t,
     input: text('포트폴리오 정리 언제 할지 정해줘'),
     status: 'error',
-    steps: [...inputGuards(), server('cards_assembled', 'OpenAI 호출이 연결 오류로 실패해 503 dependency_unavailable로 끝냈다.')],
+    steps: [server('cards_assembled', 'OpenAI 호출이 연결 오류로 실패해 503 dependency_unavailable로 끝냈다.')],
     response: (_s, turn) => errorResponse(turn, 'dependency_unavailable', '지금은 답할 수 없어요. 잠시 뒤 다시 시도해 주세요.', true),
   }),
   // 세션 R4: 처리 중(아직 끝나지 않음)
@@ -761,7 +776,7 @@ const realScenarios: ((sessionId: string, startedAt: number) => RunSpec)[] = [
     startedAt: t,
     input: text('이번 주 계획 정리 좀'),
     status: 'normal',
-    steps: [...inputGuards(), model({ input: 5100, output: 160, ko: '이번 주 계획을 조회한다.', en: 'Search this week\'s plans.', next: 'search_plans' })],
+    steps: [model({ input: 5100, output: 160, ko: '이번 주 계획을 조회한다.', en: 'Search this week\'s plans.', next: 'search_plans' })],
     response: null,
     unfinished: true,
   }),
