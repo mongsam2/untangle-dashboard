@@ -1,11 +1,13 @@
-import type { Proposal, Question, TodayBriefingCard } from '../../../api/types';
+import type { Proposal, ProposalType, Question, TodayBriefingCard } from '../../../api/types';
 import { Badge } from '../../../components/Badge';
+import { CheckIcon } from '../../../components/icons';
 import { fmtMinutes, shortId } from '../../../lib/format';
 import { KIND } from '../../../lib/kinds';
 import { proposalView } from '../../../lib/proposal';
 import s from './ProposalCard.module.css';
 
-// 앱의 D11 제안 카드를 대시보드에서 다시 그린 것. 최초 상태 → 최종 상태만 비교하고 버튼은 수락·거절 둘뿐이다.
+// 앱의 D11 제안 카드를 대시보드에서 다시 그린 것. 최초 상태 → 최종 상태만 비교한다.
+// 바닥은 카드가 앱에 처음 도착했을 때의 모습이다. 사용자가 실제로 무엇을 눌렀는지는 기록에 없다.
 export function ProposalCard({ proposal, compact }: { proposal: Proposal; compact?: boolean }) {
   const v = proposalView(proposal);
   return (
@@ -50,10 +52,27 @@ export function ProposalCard({ proposal, compact }: { proposal: Proposal; compac
           ))}
         </div>
       )}
-      <div className={s.buttons} aria-hidden="true">
-        <span className={`${s.button} ${s.accept}`}>수락</span>
-        <span className={s.button}>거절</span>
+      <CardFooter type={proposal.proposal_type} />
+    </div>
+  );
+}
+
+/** 앱 카드의 바닥. 추가 카드는 받는 즉시 저장되어 [되돌리기]만, 삭제는 [거절]·[삭제], 나머지는 [거절]·[수락]이다. */
+function CardFooter({ type }: { type: ProposalType }) {
+  if (type === 'create_todo' || type === 'create_plan') {
+    return (
+      <div className={s.saved} aria-hidden="true">
+        <CheckIcon />
+        <span className={s.savedLabel}>저장됨</span>
+        <span className={s.undo}>되돌리기</span>
       </div>
+    );
+  }
+  const remove = type === 'delete_todo' || type === 'delete_plan';
+  return (
+    <div className={s.buttons} aria-hidden="true">
+      <span className={s.button}>거절</span>
+      <span className={`${s.button} ${remove ? s.remove : s.accept}`}>{remove ? '삭제' : '수락'}</span>
     </div>
   );
 }

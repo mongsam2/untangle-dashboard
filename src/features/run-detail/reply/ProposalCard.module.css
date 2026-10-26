@@ -124,6 +124,37 @@
   color: var(--text-inverse);
 }
 
+.remove {
+  border-color: var(--text-danger);
+  background: var(--text-danger);
+  color: var(--text-inverse);
+}
+
+/* 추가 카드: 받는 즉시 저장되어 결과 한 줄과 [되돌리기]만 남는다. */
+.saved {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  color: var(--surface-action);
+}
+
+.savedLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.undo {
+  margin-left: auto;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-hierarchy);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 /* 질문 */
 .question {
   display: flex;
