@@ -82,6 +82,7 @@
 |---|---|
 | `bun run dev` | 개발 서버(http://localhost:5173) |
 | `bun run build` | 타입 검사(`tsc -b`) 후 `dist/`에 빌드 |
+| `bun run preview` | `dist/`를 http://0.0.0.0:4173 에서 띄운다. 개발 서버와 같은 프록시가 붙어 live 모드가 그대로 동작한다 |
 | `bun run typecheck` | 타입 검사만 |
 | `bun run test` | Vitest 단위 테스트(`src/**/*.test.ts`) |
 
@@ -104,13 +105,28 @@
 | `TANGLE_DASHBOARD_TOKEN` | 없음 | 탱글 서버의 같은 이름 설정값. 프록시가 `Authorization: Bearer …` 헤더로 붙인다 |
 
 - **백엔드 경유**: dev·prod 탱글 서버는 내부망에만 있어 직접 붙지 못한다. 백엔드(`untangle_server`)의 운영자 API `/api/v1/admin/tangle/dashboard/{runs, runs/{turn_id}, sessions, sessions/{session_id}, cases/{test_case_id}, stats}`가 탱글 대시보드 토큰을 붙여 `/v2/dashboard/*`로 중계한다
-- **토큰도 프록시에서만**: `TANGLE_DASHBOARD_TOKEN`도 `ADMIN_KEY`처럼 프록시에서만 헤더로 붙인다. 그래서 live 모드는 개발 서버(`bun run dev`)로 띄운다. `dist/` 정적 파일만으로는 프록시가 없어 데이터를 읽지 못한다
+- **토큰도 프록시에서만**: `TANGLE_DASHBOARD_TOKEN`도 `ADMIN_KEY`처럼 프록시에서만 헤더로 붙인다. 그래서 live 모드는 프록시가 있는 `bun run dev`나 `bun run preview`로 띄운다. `dist/` 정적 파일만 다른 웹 서버에 올리면 프록시가 없어 데이터를 읽지 못한다
+
+### 배포
+
+서버 한 대에 bun만 있으면 된다. 저장소를 받고 `.env`에 `VITE_API_MODE=live`·`ADMIN_API_URL`·`ADMIN_KEY`를 채운 뒤 아래를 실행하면 4173 포트에서 운영자 API를 거쳐 dev·prod 탱글 기록을 읽는다.
+
+```bash
+bun install --frozen-lockfile
+bun run build
+bun run preview
+```
+
+- **prod 기록**: `ADMIN_API_URL`을 prod 백엔드 주소로, `ADMIN_KEY`를 prod 운영자 키(SSM `/untangle/prod/ADMIN_KEY`)로 바꾼다. 백엔드의 `/api/v1/admin/tangle/dashboard/*` 중계와 탱글의 `TANGLE_DASHBOARD_TOKEN`이 그 환경에 설정돼 있어야 한다
+- **키 보호**: `ADMIN_KEY`는 프록시가 서버 쪽에서만 붙이므로 브라우저에 노출되지 않지만, 대시보드 자체에는 로그인이 없다. 포트는 팀 내부망·VPN에서만 열고 공개 인터넷에 두지 않는다
+- **정적 호스팅은 안 됨**: `dist/`만 S3·Pages 같은 곳에 올리면 프록시가 없어 `/v2/dashboard/*` 호출이 실패한다. 꼭 정적으로 두려면 같은 도메인의 리버스 프록시(nginx 등)가 `/v2/dashboard/*`를 `{ADMIN_API_URL}/api/v1/admin/tangle/dashboard/*`로 바꾸고 `X-Admin-Key`를 붙여야 한다
 
 ### API 계약과 타입
 
 - **정본**: `untangle-ai-v2/docs/tangle/server-contract.md` §6. 식별자는 `session_id`·`turn_id`(요청 1건)·`test_case_id`, 단계 종류는 `model`·`tool`·`guardrail`·`server`, 도구 종류는 `query`·`proposal`·`briefing`, 실행 상태는 6종
 - **타입 파일**: `src/api/types.ts`에 계약을 손으로 옮겼다. 새 서버가 OpenAPI 문서를 내면 `openapi-typescript` 생성물로 바꿔도 되지만, 그때까지는 계약이 바뀔 때 이 파일과 mock을 같이 고친다
-- **mock**: 예시 데이터 55건(설계 문서의 검증 사례 16종 × 3회 + 실제 요청 4세션 7턴, 그중 끝나지 않은 요청 1건)으로 여섯 조회 API를 흉내 낸다. 필터·커서 페이지·요약·집계를 서버와 같은 규칙으로 계산한다(평균·합계에서 null 제외, 범위를 벗어난 `limit`·조건이 다른 커서는 422, 없는 대상은 404). 케이스 번호와 제목은 `src/lib/cases.ts`, 시나리오는 `src/api/mock/fixtures.ts`
+- **서버가 바꾸는 기록**: 모델이 답변 말풍선과 제안 안내를 모두 비우면 서버가 기본 문장("하나만 물어볼게."·"몇 가지만 물어볼게."·"이렇게 바꿔보는 건 어때?"·"오늘 할 일을 정리해봤어.")을 채워 저장하므로 기록의 `answer`가 모델 원문이 아닐 수 있다. 상세·재생 화면은 그 경우 말풍선 옆에 "서버 기본 문구" 꼬리표를 단다(`src/lib/response.ts`). 질문 문구 200자·선택지 40자(UTF-16) 초과는 출력 검증에서 `question_length`·`option_length`로 거절돼 `correction_requested` 뒤 재시도되고, 새 할 일·계획 생성 도구의 `estimated_minutes`는 필수라 빠뜨리면 `INVALID_ARGUMENT` 도구 실패 단계가 하나 더 남는다
+- **mock**: 예시 데이터 61건(설계 문서의 검증 사례 18종 × 3회 + 실제 요청 4세션 7턴, 그중 끝나지 않은 요청 1건)으로 여섯 조회 API를 흉내 낸다. 필터·커서 페이지·요약·집계를 서버와 같은 규칙으로 계산한다(평균·합계에서 null 제외, 범위를 벗어난 `limit`·조건이 다른 커서는 422, 없는 대상은 404). 케이스 번호와 제목은 `src/lib/cases.ts`, 시나리오는 `src/api/mock/fixtures.ts`
 
 ### 화면 규칙
 

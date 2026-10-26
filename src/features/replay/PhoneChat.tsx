@@ -51,7 +51,14 @@ function ChatLineView({ line }: { line: ChatLine }) {
     case 'agent':
       return (
         <div className={s.line}>
-          <span className={s.who}>탱글</span>
+          <span className={s.who}>
+            탱글
+            {line.fallback && (
+              <span className={s.fallback} title="모델이 말풍선을 비워서 서버가 기본 문장으로 채웠어요.">
+                서버 기본 문구
+              </span>
+            )}
+          </span>
           <p className={`${s.bubble} ${s.bubbleAgent}`}>{line.text}</p>
         </div>
       );

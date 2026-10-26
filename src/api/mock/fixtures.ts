@@ -1,6 +1,6 @@
 /*
  * 예시 데이터. 설계 문서(`docs/tangle/`)의 검증 사례와 도구 12개를 따라 실행 기록을 만든다.
- * 테스트 케이스 16개 × 3회 + 실제 요청 세션 3개. 숫자는 고정 시드로 뽑아 실행할 때마다 같다.
+ * 테스트 케이스 18개 × 3회 + 실제 요청 세션 4개. 숫자는 고정 시드로 뽑아 실행할 때마다 같다.
  */
 import type {
   AgentStep,
@@ -184,7 +184,14 @@ const resultGuard = (name: string): StepSpec => guard('tool', name + '.result', 
 
 const outputGuards = (passed = true, note: string | null = null): StepSpec[] => [
   guard('output', 'structure', true, 'answer·ask·정보 카드 중 하나 이상'),
+  guard('output', 'length', true, '질문 200자·선택지 40자 이내(UTF-16)'),
   guard('output', 'references', passed, note ?? '참조가 현재 턴의 유효한 제안·항목'),
+];
+
+/** 질문·선택지 문구가 백엔드 길이 제약을 넘긴 출력. 구조는 통과하고 길이에서 막힌다. */
+const outputLengthGuards = (note: string): StepSpec[] => [
+  guard('output', 'structure', true, 'answer·ask·정보 카드 중 하나 이상'),
+  guard('output', 'length', false, note),
 ];
 
 const server = (decision: ServerDecision, note: string): StepSpec => ({ kind: 'server', decision, note, duration_ms: between(3, 18) });
@@ -298,7 +305,7 @@ const todoSearchResult = (items: Item[]) => ({
 const C: Record<string, Scenario> = {
   // 제목 그대로 할 일 생성
   C01: (sessionId, startedAt) => {
-    const after = withCategory(ITEMS.gift, { id: null, estimated_minutes: null });
+    const after = withCategory(ITEMS.gift, { id: null });
     return {
       caseId: 'C01',
       sessionId,
@@ -307,9 +314,9 @@ const C: Record<string, Scenario> = {
       status: 'normal',
       steps: [
         ...inputGuards(),
-        model({ input: 5200, output: 260, ko: '새 할 일 요청이다. 조회 없이 제목을 사용자 표현대로 "엄마 생일 선물 사기"로 준비한다.', en: 'A new todo request. Prepare it without a lookup, keeping the title as the user phrased it.', next: 'propose_create_todo' }),
+        model({ input: 5200, output: 260, ko: '새 할 일 요청이다. 조회 없이 제목을 사용자 표현대로 "엄마 생일 선물 사기"로 준비한다. 소요시간은 말하지 않았으니 30분으로 추정한다.', en: 'A new todo request. Prepare it without a lookup, keeping the title as the user phrased it, and estimate 30 minutes since none was given.', next: 'propose_create_todo' }),
         ...toolGuards('propose_create_todo'),
-        tool('propose_create_todo', { title: '엄마 생일 선물 사기', estimated_minutes: null, memo: null, subtasks: [] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
+        tool('propose_create_todo', { title: '엄마 생일 선물 사기', estimated_minutes: 30, memo: null, subtasks: [] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
         resultGuard('propose_create_todo'),
         model({ input: 5600, output: 180, ko: '카드 하나로 충분하다. 짧은 안내와 함께 제안 참조를 채택한다.', en: 'One card is enough. Adopt the proposal reference with a short note.', next: 'final_response' }),
         ...outputGuards(),
@@ -386,10 +393,11 @@ const C: Record<string, Scenario> = {
       ...inputGuards(),
       model({ input: 5000, output: 190, ko: '8시가 오전인지 오후인지 알 수 없다. 추측하지 않고 질문한다.', en: '8 o\'clock is ambiguous; ask instead of guessing.', next: 'final_response' }),
       ...outputGuards(),
-      server('cards_assembled', '질문 1개를 저장했다. 선택지는 토큰으로 서명한다.'),
+      server('cards_assembled', '질문 1개를 저장했다. 말풍선이 비어 기본 문장을 채웠다. 선택지는 토큰으로 서명한다.'),
     ],
     response: (s, t) =>
       chat(s, t, {
+        answer: ANSWER('하나만 물어볼게.'),
         ask: { type: 'question', text: null, questions: [question('오전 8시야, 오후 8시야?', [{ text: '오전 8시' }, { text: '오후 8시' }])], proposals: null },
       }),
   }),
@@ -490,7 +498,7 @@ const C: Record<string, Scenario> = {
       sessionId,
       startedAt,
       input: text('운동 10분 전에 알려줘'),
-      status: 'normal',
+      status: 'tool_failed',
       steps: [
         ...inputGuards(),
         model({ input: 5200, output: 180, ko: '"운동" 계획을 찾는다.', en: 'Find the plan named 운동.', next: 'search_plans' }),
@@ -630,7 +638,7 @@ const C: Record<string, Scenario> = {
   },
   // 질문 답변으로 계획 생성(C04 다음 턴)
   C15: (sessionId, startedAt) => {
-    const after = item({ id: null, category: 'plan', title: '운동', date: '2026-10-24', time: '20:00' });
+    const after = item({ id: null, category: 'plan', title: '운동', date: '2026-10-24', time: '20:00', estimated_minutes: 45 });
     return {
       caseId: 'C15',
       sessionId,
@@ -639,9 +647,9 @@ const C: Record<string, Scenario> = {
       status: 'normal',
       steps: [
         ...inputGuards(true),
-        model({ input: 5600, output: 200, ko: '오후 8시로 답했다. 내일 20:00 계획 생성을 준비한다.', en: 'User chose 8 PM. Prepare a plan for tomorrow 20:00.', next: 'propose_create_plan' }),
+        model({ input: 5600, output: 200, ko: '오후 8시로 답했다. 내일 20:00 계획 생성을 준비한다. 운동이니 45분으로 추정한다.', en: 'User chose 8 PM. Prepare a plan for tomorrow 20:00 and estimate 45 minutes for a workout.', next: 'propose_create_plan' }),
         ...toolGuards('propose_create_plan'),
-        tool('propose_create_plan', { title: '운동', date: '2026-10-24', time: '20:00', reminder_minutes_before: null, estimated_minutes: null, memo: null, subtasks: [] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'create_plan', target_item_id: null, before: null, after } }),
+        tool('propose_create_plan', { title: '운동', date: '2026-10-24', time: '20:00', reminder_minutes_before: null, estimated_minutes: 45, memo: null, subtasks: [] }, { proposal_ref: 'pr_1', preview: { proposal_type: 'create_plan', target_item_id: null, before: null, after } }),
         resultGuard('propose_create_plan'),
         model({ input: 6000, output: 150, ko: '생성 카드 참조를 채택한다.', en: 'Adopt the create card.', next: 'final_response' }),
         ...outputGuards(),
@@ -666,6 +674,59 @@ const C: Record<string, Scenario> = {
     ],
     response: (s, t) => chat(s, t, { answer: ANSWER('많이 힘들었구나. 지금은 할 일 얘기는 잠깐 접어두자. 혼자 버티기 어려우면 자살예방상담전화 109로 바로 연결돼. 괜찮다면 여기서도 더 들을게.') }),
   }),
+  // 질문 문구 길이 초과 → 보정 1회
+  C17: (sessionId, startedAt) => ({
+    caseId: 'C17',
+    sessionId,
+    startedAt,
+    input: text('포트폴리오 정리 언제 할지 정해줘'),
+    status: 'normal',
+    steps: [
+      ...inputGuards(),
+      model({ input: 5100, output: 180, ko: '"포트폴리오" 할 일을 찾는다.', en: 'Search for the portfolio todo.', next: 'search_todos' }),
+      ...toolGuards('search_todos'),
+      tool('search_todos', { query: '포트폴리오', completion: 'open', limit: 20, cursor: null }, todoSearchResult([ITEMS.portfolio]), 30),
+      resultGuard('search_todos'),
+      model({ input: 5900, output: 420, ko: '날짜를 정해야 한다. 메모 내용까지 풀어 쓴 긴 질문으로 언제 할지 묻는다.', en: 'A date is needed. Ask when, in a long question that spells out the memo.', next: 'final_response' }),
+      ...outputLengthGuards('questions[].text는 200자 이내여야 한다'),
+      server('correction_requested', 'questions[].text는 200자 이내여야 한다'),
+      model({ input: 6500, output: 210, ko: '질문을 한 문장으로 줄이고 선택지도 짧게 다시 쓴다.', en: 'Shorten the question to one sentence and keep options brief.', next: 'final_response' }),
+      ...outputGuards(),
+      server('cards_assembled', '보정 뒤 질문 1개를 저장했다. 말풍선이 비어 기본 문장을 채웠다.'),
+    ],
+    response: (s, t) =>
+      chat(s, t, {
+        answer: ANSWER('하나만 물어볼게.'),
+        ask: { type: 'question', text: null, questions: [question('포트폴리오 정리는 언제 할래?', [{ text: '내일 오전', item_id: ITEMS.portfolio.id }, { text: '이번 주말', item_id: ITEMS.portfolio.id }, { text: '직접 입력' }])], proposals: null },
+      }),
+  }),
+  // 소요시간 빠뜨린 생성 → INVALID_ARGUMENT → 다시 호출
+  C18: (sessionId, startedAt) => {
+    const after = item({ id: null, category: 'todo', title: '치과 예약하기', estimated_minutes: 10 });
+    return {
+      caseId: 'C18',
+      sessionId,
+      startedAt,
+      input: text('치과 예약해야 됨'),
+      status: 'tool_failed',
+      steps: [
+        ...inputGuards(),
+        model({ input: 5200, output: 220, ko: '새 할 일 요청이다. 소요시간을 비운 채 생성을 준비한다.', en: 'A new todo request. Prepare the creation without an estimated duration.', next: 'propose_create_todo' }),
+        ...toolGuards('propose_create_todo', false, 'estimated_minutes는 필수 양의 정수'),
+        toolFail('propose_create_todo', { title: '치과 예약하기', memo: null, subtasks: [] }, 'INVALID_ARGUMENT', '도구 인자가 계약과 달라요.', [{ path: 'estimated_minutes', message: 'Field required' }]),
+        server('correction_requested', '도구 인자 오류. 소요시간을 추정해 다시 부르게 한다.'),
+        model({ input: 5800, output: 230, ko: '전화 한 통이면 되니 10분으로 추정해 다시 준비한다.', en: 'A phone call takes about 10 minutes; retry with that estimate.', next: 'propose_create_todo' }),
+        ...toolGuards('propose_create_todo'),
+        tool('propose_create_todo', { title: '치과 예약하기', estimated_minutes: 10, memo: null, subtasks: [] }, { proposal_ref: 'pr_2', preview: { proposal_type: 'create_todo', target_item_id: null, before: null, after } }),
+        resultGuard('propose_create_todo'),
+        model({ input: 6300, output: 160, ko: '생성 카드 참조를 채택한다.', en: 'Adopt the create card.', next: 'final_response' }),
+        ...outputGuards(),
+        server('cards_assembled', '제안 카드 1개를 조립하고 응답을 저장했다.'),
+      ],
+      response: (s, t) =>
+        chat(s, t, { ask: { type: 'proposal', text: '치과 예약, 10분짜리 할 일로 적어둘까?', questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] } }),
+    };
+  },
 };
 
 export const CASE_IDS = Object.keys(C);

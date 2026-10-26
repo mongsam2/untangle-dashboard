@@ -1,6 +1,7 @@
 import { isErrorResponse, type ChatResponse, type RunStatus, type StoredResponse } from '../../../api/types';
 import { StepIcon } from '../../../components/StepIcon';
 import { shortId } from '../../../lib/format';
+import { hasFallbackAnswer } from '../../../lib/response';
 import { BriefingCard, ProposalCard, QuestionList } from './ProposalCard';
 import s from './ResponseView.module.css';
 
@@ -38,7 +39,14 @@ function ChatBody({ r }: { r: ChatResponse }) {
     <>
       {r.answer && (
         <div className={s.bubbleWrap}>
-          <span className={s.who}>탱글</span>
+          <span className={s.who}>
+            탱글
+            {hasFallbackAnswer(r) && (
+              <span className={s.fallback} title="모델이 말풍선을 비워서 서버가 기본 문장으로 채웠어요. 모델이 쓴 문장이 아니에요.">
+                서버 기본 문구
+              </span>
+            )}
+          </span>
           <p className={s.bubble}>{r.answer.text}</p>
         </div>
       )}

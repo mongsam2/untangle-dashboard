@@ -1,5 +1,6 @@
 import { isErrorResponse, type AgentStep, type Proposal, type Question, type RunDetailResponse, type StoredResponse, type TodayBriefingCard } from '../../api/types';
 import { inputText } from '../../lib/input';
+import { hasFallbackAnswer } from '../../lib/response';
 import { RUN_STATUS_HINT } from '../../lib/status';
 import { displaySteps, type DisplayStep } from '../run-detail/displaySteps';
 
@@ -11,7 +12,7 @@ import { displaySteps, type DisplayStep } from '../run-detail/displaySteps';
 
 export type ChatLine =
   | { kind: 'user'; id: string; text: string }
-  | { kind: 'agent'; id: string; text: string }
+  | { kind: 'agent'; id: string; text: string; fallback?: boolean }
   | { kind: 'proposal'; id: string; proposal: Proposal }
   | { kind: 'question'; id: string; questions: Question[] }
   | { kind: 'briefing'; id: string; card: TodayBriefingCard }
@@ -59,7 +60,7 @@ export function responseLines(response: StoredResponse | null, status: RunDetail
   if (!response) return [{ kind: 'system', id: prefix + ':pending', text: '아직 끝나지 않은 요청이에요.' }];
   if (isErrorResponse(response)) return [{ kind: 'error', id: prefix + ':error', code: response.error.code, text: response.error.message }];
   const lines: ChatLine[] = [];
-  if (response.answer) lines.push({ kind: 'agent', id: prefix + ':answer', text: response.answer.text });
+  if (response.answer) lines.push({ kind: 'agent', id: prefix + ':answer', text: response.answer.text, fallback: hasFallbackAnswer(response) });
   if (response.ask?.text) lines.push({ kind: 'agent', id: prefix + ':ask', text: response.ask.text });
   if (response.ask?.type === 'question' && response.ask.questions?.length) lines.push({ kind: 'question', id: prefix + ':q', questions: response.ask.questions });
   if (response.ask?.type === 'proposal' && response.ask.proposals) {

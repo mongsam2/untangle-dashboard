@@ -20,7 +20,7 @@ describe('displaySteps', () => {
   });
 
   it('요약 줄에 모델·도구·가드레일·보정 수가 들어간다', () => {
-    expect(stepsDigest(c10.steps)).toBe('모델 3 · 도구 2 · 가드레일 8 (차단 1) · 보정 1');
+    expect(stepsDigest(c10.steps)).toBe('모델 3 · 도구 2 · 가드레일 9 (차단 1) · 보정 1');
   });
 
   it('추론 요약은 번역본을 우선한다', () => {

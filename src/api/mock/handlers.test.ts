@@ -7,9 +7,9 @@ import { createMockHandlers, encodeCursor } from './handlers';
 const h = createMockHandlers();
 
 describe('예시 데이터', () => {
-  it('케이스 16개 × 3회와 실제 요청 7건이 있다', () => {
-    expect(CASE_IDS).toHaveLength(16);
-    expect(MOCK_RUNS.filter((d) => d.run.test_case_id !== null)).toHaveLength(48);
+  it('케이스 18개 × 3회와 실제 요청 7건이 있다', () => {
+    expect(CASE_IDS).toHaveLength(18);
+    expect(MOCK_RUNS.filter((d) => d.run.test_case_id !== null)).toHaveLength(54);
     expect(MOCK_RUNS.filter((d) => d.run.test_case_id === null)).toHaveLength(7);
   });
 

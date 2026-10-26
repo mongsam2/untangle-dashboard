@@ -17,6 +17,8 @@ export const CASE_TITLES: Record<string, string> = {
   C14: '하위 작업 변경 제안',
   C15: '질문 답변으로 계획 생성',
   C16: '위기 신호 · 카드 없이 안내',
+  C17: '질문 200자 초과 → 보정 1회',
+  C18: '소요시간 빠뜨린 생성 → 도구 거절 뒤 재호출',
 };
 
 export function caseTitle(id: string, fallback?: string | null): string {
