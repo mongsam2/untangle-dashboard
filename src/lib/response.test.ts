@@ -9,9 +9,9 @@ describe('서버 기본 말풍선', () => {
     expect(isFallbackBubble('운동은 몇 시에 할 거야?')).toBe(false);
   });
 
-  it('ask.text가 있으면 같은 문장이라도 기본 문구로 보지 않는다', () => {
-    expect(hasFallbackAnswer({ answer: { text: '하나만 물어볼게.' }, ask: null })).toBe(true);
-    expect(hasFallbackAnswer({ answer: { text: '하나만 물어볼게.' }, ask: { type: 'proposal', text: '이렇게 바꿔볼까?', questions: null, proposals: [] } })).toBe(false);
-    expect(hasFallbackAnswer({ answer: null, ask: null })).toBe(false);
+  it('answer만 보고 기본 문구인지 정한다', () => {
+    expect(hasFallbackAnswer({ answer: { text: '하나만 물어볼게.' } })).toBe(true);
+    expect(hasFallbackAnswer({ answer: { text: '보고서 초안을 내일로 옮겨볼까?' } })).toBe(false);
+    expect(hasFallbackAnswer({ answer: null })).toBe(false);
   });
 });

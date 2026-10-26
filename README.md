@@ -125,7 +125,7 @@ bun run preview
 
 - **정본**: `untangle-ai-v2/docs/tangle/server-contract.md` §6. 식별자는 `session_id`·`turn_id`(요청 1건)·`test_case_id`, 단계 종류는 `model`·`tool`·`guardrail`·`server`, 도구 종류는 `query`·`proposal`·`briefing`, 실행 상태는 6종
 - **타입 파일**: `src/api/types.ts`에 계약을 손으로 옮겼다. 새 서버가 OpenAPI 문서를 내면 `openapi-typescript` 생성물로 바꿔도 되지만, 그때까지는 계약이 바뀔 때 이 파일과 mock을 같이 고친다
-- **서버가 바꾸는 기록**: 모델이 답변 말풍선과 제안 안내를 모두 비우면 서버가 기본 문장("하나만 물어볼게."·"몇 가지만 물어볼게."·"이렇게 바꿔보는 건 어때?"·추가 카드만 있으면 "추가해뒀어. 필요 없으면 되돌려도 돼."·"오늘 할 일을 정리해봤어.")을 채워 저장하므로 기록의 `answer`가 모델 원문이 아닐 수 있다. 상세·재생 화면은 그 경우 말풍선 옆에 "서버 기본 문구" 꼬리표를 단다(`src/lib/response.ts`). 질문 문구 200자·선택지 40자(UTF-16) 초과는 출력 검증에서 `question_length`·`option_length`로 거절돼 `correction_requested` 뒤 재시도되고, 새 할 일·계획 생성 도구의 `estimated_minutes`는 필수라 빠뜨리면 `INVALID_ARGUMENT` 도구 실패 단계가 하나 더 남는다
+- **서버가 바꾸는 기록**: 탱글 응답의 말풍선은 `answer` 하나다(`ask.text`는 항상 null). 모델이 말풍선을 비우면 서버가 기본 문장("하나만 물어볼게."·"몇 가지만 물어볼게."·"이렇게 바꿔보는 건 어때?"·추가 카드만 있으면 "추가해뒀어. 필요 없으면 되돌려도 돼."·"오늘 할 일을 정리해봤어.")을 채워 저장하므로 기록의 `answer`가 모델 원문이 아닐 수 있다. 상세·재생 화면은 그 경우 말풍선 옆에 "서버 기본 문구" 꼬리표를 단다(`src/lib/response.ts`). 질문 문구 200자·선택지 40자(UTF-16) 초과는 출력 검증에서 `question_length`·`option_length`로 거절돼 `correction_requested` 뒤 재시도되고, 새 할 일·계획 생성 도구의 `estimated_minutes`는 필수라 빠뜨리면 `INVALID_ARGUMENT` 도구 실패 단계가 하나 더 남는다
 - **mock**: 예시 데이터 61건(설계 문서의 검증 사례 18종 × 3회 + 실제 요청 4세션 7턴, 그중 끝나지 않은 요청 1건)으로 여섯 조회 API를 흉내 낸다. 필터·커서 페이지·요약·집계를 서버와 같은 규칙으로 계산한다(평균·합계에서 null 제외, 범위를 벗어난 `limit`·조건이 다른 커서는 422, 없는 대상은 404). 케이스 번호와 제목은 `src/lib/cases.ts`, 시나리오는 `src/api/mock/fixtures.ts`
 
 ### 화면 규칙

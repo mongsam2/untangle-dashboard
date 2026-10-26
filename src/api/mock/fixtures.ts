@@ -324,7 +324,8 @@ const C: Record<string, Scenario> = {
       ],
       response: (s, t) =>
         chat(s, t, {
-          ask: { type: 'proposal', text: '이렇게 적어둘까?', questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] },
+          answer: ANSWER('엄마 생일 선물 사기, 할 일로 추가해뒀어.'),
+          ask: { type: 'proposal', text: null, questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] },
         }),
     };
   },
@@ -373,9 +374,10 @@ const C: Record<string, Scenario> = {
       ],
       response: (s, t) =>
         chat(s, t, {
+          answer: ANSWER('보고서 초안을 내일 10시 계획으로 옮겨보는 건 어때?'),
           ask: {
             type: 'proposal',
-            text: '보고서 초안을 내일 10시 계획으로 옮겨보는 건 어때?',
+            text: null,
             questions: null,
             proposals: [proposal('move_todo_to_plan', before, after, [{ op: 'move', category: 'plan', date: '2026-10-24', time: '10:00', reminder_minutes_before: null }])],
           },
@@ -599,8 +601,8 @@ const C: Record<string, Scenario> = {
       steps,
       response: (s, t) =>
         chat(s, t, {
-          answer: ANSWER('먼저 네 개를 이틀에 나눠 봤어. 토익 단어 외우기는 다음에 이어서 정하자.'),
-          ask: { type: 'proposal', text: '이렇게 옮겨볼까?', questions: null, proposals: proposals.map((x) => x.p) },
+          answer: ANSWER('먼저 네 개를 이틀에 나눠 봤어. 이렇게 옮겨볼까? 토익 단어 외우기는 다음에 이어서 정하자.'),
+          ask: { type: 'proposal', text: null, questions: null, proposals: proposals.map((x) => x.p) },
         }),
     };
   },
@@ -632,7 +634,8 @@ const C: Record<string, Scenario> = {
       ],
       response: (s, t) =>
         chat(s, t, {
-          ask: { type: 'proposal', text: '하위 작업을 이렇게 늘려볼까?', questions: null, proposals: [proposal('update_todo', before, after, [{ op: 'set_subtasks', subtasks: after.subtasks.map((s) => ({ subtask_id: s.id, title: s.title })) }])] },
+          answer: ANSWER('하위 작업을 이렇게 늘려볼까?'),
+          ask: { type: 'proposal', text: null, questions: null, proposals: [proposal('update_todo', before, after, [{ op: 'set_subtasks', subtasks: after.subtasks.map((s) => ({ subtask_id: s.id, title: s.title })) }])] },
         }),
     };
   },
@@ -656,7 +659,7 @@ const C: Record<string, Scenario> = {
         server('cards_assembled', '생성 카드 1개를 조립했다.'),
       ],
       response: (s, t) =>
-        chat(s, t, { ask: { type: 'proposal', text: '내일 저녁 8시 운동으로 넣어둘까?', questions: null, proposals: [proposal('create_plan', null, after, [{ op: 'create', item: after }])] } }),
+        chat(s, t, { answer: ANSWER('내일 저녁 8시에 운동 계획 넣어뒀어.'), ask: { type: 'proposal', text: null, questions: null, proposals: [proposal('create_plan', null, after, [{ op: 'create', item: after }])] } }),
     };
   },
   // 위기 신호
@@ -724,7 +727,7 @@ const C: Record<string, Scenario> = {
         server('cards_assembled', '제안 카드 1개를 조립하고 응답을 저장했다.'),
       ],
       response: (s, t) =>
-        chat(s, t, { ask: { type: 'proposal', text: '치과 예약, 10분짜리 할 일로 적어둘까?', questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] } }),
+        chat(s, t, { answer: ANSWER('치과 예약, 10분짜리 할 일로 추가해뒀어.'), ask: { type: 'proposal', text: null, questions: null, proposals: [proposal('create_todo', null, after, [{ op: 'create', item: after }])] } }),
     };
   },
 };
