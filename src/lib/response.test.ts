@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { FALLBACK_BUBBLES, hasFallbackAnswer, isFallbackBubble } from './response';
 
 describe('서버 기본 말풍선', () => {
-  it('네 문장을 기본 문구로 본다', () => {
-    expect(FALLBACK_BUBBLES).toHaveLength(4);
+  it('다섯 문장을 기본 문구로 본다', () => {
+    expect(FALLBACK_BUBBLES).toHaveLength(5);
+    expect(isFallbackBubble('추가해뒀어. 필요 없으면 되돌려도 돼.')).toBe(true);
     for (const text of FALLBACK_BUBBLES) expect(isFallbackBubble(text)).toBe(true);
     expect(isFallbackBubble('운동은 몇 시에 할 거야?')).toBe(false);
   });
