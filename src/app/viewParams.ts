@@ -4,7 +4,7 @@
 //   ?case=<test_case_id>     케이스 인스펙터
 //   ?session=<session_id>    세션 인스펙터. 실행 인스펙터와 함께 있으면 세션으로 돌아가는 링크
 //   &replay=1                재생 화면(실행이 열려 있으면 실행, 아니면 세션 재생)
-// 필터(source·status)는 useRunFilters가 다룬다.
+// 필터(source·status)는 useRunFilters가, 서버(?server=dev|prod|local)는 AppShell이 다룬다.
 
 export interface ViewState {
   run: string | null;
