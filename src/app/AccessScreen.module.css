@@ -1,0 +1,65 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px var(--page-gutter);
+}
+
+.card {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px 28px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-document);
+}
+
+.brand {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.hint {
+  color: var(--text-secondary);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.input {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line-hierarchy);
+  border-radius: var(--radius-8);
+  background: var(--surface-document);
+  font: inherit;
+  color: var(--text-primary);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 0;
+  border-color: var(--border-focus);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--text-danger);
+}
+
+.error {
+  font-size: 13px;
+  color: var(--text-danger);
+}
