@@ -16,6 +16,7 @@
   --surface-emphasis: #e3edff;
   --surface-success: #ddf9eb;
   --surface-warning: #fff0cc;
+  --surface-memory: #efe8fd;
   --surface-danger: #fce8e6;
   --surface-hover: #f1f5f9;
   --surface-inverse: #17212f;
@@ -37,6 +38,8 @@
   --data-query: #2558c8;
   --data-proposal: #a85908;
   --data-briefing: #08734c;
+  /* 기억 도구 색은 피그마 변수에 아직 없다. 다른 도구 종류와 겹치지 않는 보라로 둔다 */
+  --data-memory: #6b46c1;
   --data-server: #94a3b8;
   --data-failure: #b3261e;
   --data-success: #08734c;
@@ -67,6 +70,8 @@
   --ramp-proposal-7: #f0c08a;
   --ramp-proposal-8: #f6d7b3;
   --ramp-briefing-1: #08734c;
+  --ramp-memory-1: #6b46c1;
+  --ramp-memory-2: #a58ae0;
 
   /* 실행 상태 6종 */
   --status-normal-bg: #ddf9eb;

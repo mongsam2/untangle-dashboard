@@ -72,6 +72,14 @@ export function BriefingIcon() {
   );
 }
 
+export function MemoryIcon() {
+  return (
+    <svg {...common} width="18" height="18" strokeWidth="1.8" style={{ color: 'var(--data-memory)' }}>
+      <path d="M6 4h12v16l-6-4-6 4z" />
+    </svg>
+  );
+}
+
 export function ShieldIcon({ color = 'var(--guard-fg)' }: { color?: string }) {
   return (
     <svg {...common} width="18" height="18" strokeWidth="1.8" style={{ color }}>

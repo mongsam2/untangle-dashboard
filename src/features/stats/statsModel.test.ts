@@ -7,7 +7,7 @@ const stats = createMockHandlers().getStats({});
 describe('statsModel', () => {
   it('도넛은 종류 비율과 조회·제안 안의 분포를 준다', () => {
     const d = toolDonuts(stats);
-    expect(d.map((x) => x.name)).toEqual(['조회 · 제안 · 브리핑', '조회 도구 안에서', '제안 도구 안에서']);
+    expect(d.map((x) => x.name)).toEqual(['조회 · 제안 · 브리핑 · 기억', '조회 도구 안에서', '제안 도구 안에서']);
     expect(d[0]!.items.map((i) => i.label)).toEqual(['조회 도구', '제안 도구', '브리핑 도구']);
     expect(d[1]!.items.length).toBeLessThanOrEqual(3);
   });
@@ -18,6 +18,16 @@ describe('statsModel', () => {
     for (let i = 1; i < byRate.length; i += 1) expect(byRate[i - 1]!.rate >= byRate[i]!.rate).toBe(true);
     const byCount = toolRows(stats, 'count');
     for (let i = 1; i < byCount.length; i += 1) expect(byCount[i - 1]!.count >= byCount[i]!.count).toBe(true);
+  });
+
+  it('기억 도구도 종류 이름과 색을 받아 도넛과 표에 들어간다', () => {
+    const withMemory = {
+      ...stats,
+      tools: [...stats.tools, { tool_name: 'update_memory', tool_kind: 'memory' as const, calls: 2, failed: 1, avg_duration_ms: 30 }],
+      tool_kinds: [...stats.tool_kinds, { value: 'memory', count: 2, ratio: 0.1 }],
+    };
+    expect(toolDonuts(withMemory)[0]!.items.at(-1)).toMatchObject({ label: '기억 도구', count: '2회', color: 'var(--data-memory)' });
+    expect(toolRows(withMemory, 'count').find((r) => r.name === 'update_memory')).toMatchObject({ kind: '기억', color: 'var(--ramp-memory-1)' });
   });
 
   it('가드레일 표는 층 순서 안에서 차단 많은 순이다', () => {
