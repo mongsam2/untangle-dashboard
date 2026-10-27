@@ -10,6 +10,14 @@ export function CloseIcon() {
   );
 }
 
+export function CheckIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg {...common} width={size} height={size} strokeWidth="2.5">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
 export function ChevronRight() {
   return (
     <svg {...common} width="16" height="16" strokeWidth="2" style={{ color: 'var(--icon-secondary)' }}>

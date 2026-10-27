@@ -8,8 +8,8 @@ const h = createMockHandlers();
 
 describe('예시 데이터', () => {
   it('케이스 18개 × 3회와 실제 요청 7건이 있다', () => {
-    expect(CASE_IDS).toHaveLength(18);
-    expect(MOCK_RUNS.filter((d) => d.run.test_case_id !== null)).toHaveLength(54);
+    expect(CASE_IDS).toHaveLength(19);
+    expect(MOCK_RUNS.filter((d) => d.run.test_case_id !== null)).toHaveLength(57);
     expect(MOCK_RUNS.filter((d) => d.run.test_case_id === null)).toHaveLength(7);
   });
 
@@ -125,10 +125,14 @@ describe('cases·stats', () => {
 
   it('가드레일 집계는 층별 검사·차단 건수를 준다', () => {
     const st = h.getStats({});
-    const length = st.guardrails.find((g) => g.layer === 'input' && g.name === 'length')!;
-    expect(length.blocked).toBe(3);
-    expect(length.checks).toBeGreaterThan(length.blocked);
+    const ownership = st.guardrails.find((g) => g.layer === 'input' && g.name === 'target_ownership')!;
+    expect(ownership.blocked).toBe(3);
+    expect(ownership.checks).toBeGreaterThan(ownership.blocked);
     expect(st.guardrails.find((g) => g.layer === 'limit')!.blocked).toBe(3);
+    // 출력 검사는 실제 서버와 같은 다섯 이름이고, 카드 누락(C19)은 missing_cards에서 막힌다.
+    const output = st.guardrails.filter((g) => g.layer === 'output').map((g) => g.name);
+    expect(new Set(output)).toEqual(new Set(['structure', 'length', 'references', 'card_count', 'missing_cards']));
+    expect(st.guardrails.find((g) => g.layer === 'output' && g.name === 'missing_cards')!.blocked).toBe(3);
   });
 
   it('token_samples는 모델을 부른 실행만 담는다', () => {

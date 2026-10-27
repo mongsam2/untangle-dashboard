@@ -20,10 +20,9 @@ const NAV = [
   { path: '/runs', label: '요청 목록' },
   { path: '/sessions', label: '대화' },
   { path: '/stats', label: '집계' },
-  { path: '/architecture', label: '구조' },
 ];
 
-// 흰 전역 메뉴, 본문, 오른쪽 상세 패널. 구조 탭은 상세 패널 없이 캔버스가 화면을 채운다.
+// 흰 전역 메뉴, 본문, 오른쪽 상세 패널.
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -31,7 +30,6 @@ export function AppShell() {
   const view = useViewState();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const current = NAV.find((n) => location.pathname.startsWith(n.path)) ?? NAV[0]!;
-  const canvas = current.path === '/architecture';
 
   const go = (path: string) => {
     const q = filtersOnly(params).toString();
@@ -55,12 +53,12 @@ export function AppShell() {
         </nav>
       </header>
       <div className={s.body}>
-        <div className={`${s.content} ${canvas ? s.contentFull : ''}`}>
+        <div className={s.content}>
           <ErrorBoundary key={location.pathname + location.search}>
             <Outlet context={{ filtersOpen, toggleFilters: () => setFiltersOpen((v) => !v) } satisfies ShellContext} />
           </ErrorBoundary>
         </div>
-        {canvas ? null : view.run ? (
+        {view.run ? (
           <ErrorBoundary key={view.run}>
             <RunInspector runId={view.run} fromCase={view.from} fromSession={view.session} />
           </ErrorBoundary>

@@ -5,7 +5,7 @@ import { guardTone } from '../../../lib/status';
 import type { StepProps } from './ModelStep';
 import s from './StepCard.module.css';
 
-// 가드레일 단계. 구조도의 차단봉처럼 줄무늬 막대를 세우고 한 줄로 짧게 보인다.
+// 가드레일 단계. 줄무늬 차단봉을 세우고 한 줄로 짧게 보인다.
 export function GuardrailStep({ step, selected, onSelect }: StepProps) {
   const tone = guardTone(step.passed);
   const blocked = step.passed === false;

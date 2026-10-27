@@ -61,7 +61,6 @@ export function responseLines(response: StoredResponse | null, status: RunDetail
   if (isErrorResponse(response)) return [{ kind: 'error', id: prefix + ':error', code: response.error.code, text: response.error.message }];
   const lines: ChatLine[] = [];
   if (response.answer) lines.push({ kind: 'agent', id: prefix + ':answer', text: response.answer.text, fallback: hasFallbackAnswer(response) });
-  if (response.ask?.text) lines.push({ kind: 'agent', id: prefix + ':ask', text: response.ask.text });
   if (response.ask?.type === 'question' && response.ask.questions?.length) lines.push({ kind: 'question', id: prefix + ':q', questions: response.ask.questions });
   if (response.ask?.type === 'proposal' && response.ask.proposals) {
     for (const p of response.ask.proposals) lines.push({ kind: 'proposal', id: prefix + ':p:' + p.proposal_id, proposal: p });

@@ -185,6 +185,7 @@ export interface Question {
 
 export interface Ask {
   type: AskType;
+  /** 항상 null. 질문 이유·카드 안내 문장은 answer에 담긴다. 백엔드가 answer와 잇는 자리라 필드만 남아 있다. */
   text: string | null;
   questions: Question[] | null;
   proposals: Proposal[] | null;

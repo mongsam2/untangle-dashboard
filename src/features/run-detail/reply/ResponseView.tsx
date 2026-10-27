@@ -50,7 +50,6 @@ function ChatBody({ r }: { r: ChatResponse }) {
           <p className={s.bubble}>{r.answer.text}</p>
         </div>
       )}
-      {r.ask?.text && <p className={`${s.bubble} ${s.askText}`}>{r.ask.text}</p>}
       {r.ask?.type === 'question' && r.ask.questions && (
         <div className={s.cards}>
           <QuestionList questions={r.ask.questions} />
