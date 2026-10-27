@@ -26,7 +26,7 @@ export function RunningView({ run, cases }: { run: TestRun; cases: TestCase[] })
         </div>
         <ProgressBar ratio={p.ratio} />
         <div className={s.scroll}>
-          <div className={s.table} style={{ minWidth: 900 }}>
+          <div className={`${s.table} ${s.progressTable}`}>
             <div className={`${s.row} ${s.headRow} ${s.progressCols}`}>
               <span>설정</span>
               <span>진행</span>
@@ -59,7 +59,7 @@ export function RunningView({ run, cases }: { run: TestRun; cases: TestCase[] })
       </Panel>
       <Panel title="방금 끝난 시도">
         <div className={s.scroll}>
-          <div className={s.table} style={{ minWidth: 900 }}>
+          <div className={`${s.table} ${s.recentTable}`}>
             <div className={`${s.row} ${s.headRow} ${s.recentCols}`}>
               <span>시각</span>
               <span>케이스</span>

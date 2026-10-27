@@ -17,13 +17,16 @@ export function RateCell({ level, size = 'md', children }: { level: RateLevel; s
   return <span className={`mono ${s.rate} ${s[`rate_${level}`]} ${s[`rate_${size}`]}`}>{children}</span>;
 }
 
-/** 비교 설정 표시. 같은 실행 안에서 A·B 색을 모든 화면에 똑같이 쓴다. */
-export function ConfigChip({ index, config }: { index: number; config: TestConfig }) {
+/**
+ * 비교 설정 표시. 같은 실행 안에서 A·B 색을 모든 화면에 똑같이 쓴다.
+ * compact면 핸드폰에서 글자(A·B)만 남긴다. 좁은 표 머리에 쓴다.
+ */
+export function ConfigChip({ index, config, compact }: { index: number; config: TestConfig; compact?: boolean }) {
   const letter = CONFIG_LETTERS[index] ?? '?';
   return (
-    <span className={s.chip}>
+    <span className={`${s.chip} ${compact ? s.chipCompact : ''}`} title={configShort(config)}>
       <span className={`${s.letter} ${s[`letter${letter}`]}`}>{letter}</span>
-      {configShort(config)}
+      <span className={s.chipText}>{configShort(config)}</span>
     </span>
   );
 }

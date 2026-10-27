@@ -91,3 +91,10 @@
 .scroll {
   overflow-x: auto;
 }
+
+/* 이름이 칸보다 길면 옆 칸을 덮지 않게 줄을 바꾼다. 핸드폰처럼 표가 최소 너비로 줄어들 때 생긴다. */
+.tools > :nth-child(2),
+.cases > :nth-child(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

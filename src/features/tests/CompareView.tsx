@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { ConfigChip, Panel, RateCell } from './parts';
 import {
   bestIndex,
@@ -40,14 +41,14 @@ export function CompareView({ run, cases, onOpenValue }: { run: TestRun; cases: 
   const summaries = configSummaries(run);
   const groups = categoryRates(run, cases);
   const failures = frequentFailures(run, cases);
-  const cols = { gridTemplateColumns: `minmax(160px, 1fr) 72px ${run.configs.map(() => '150px').join(' ')}` };
-  const failCols = { gridTemplateColumns: `minmax(240px, 1fr) 80px ${run.configs.map(() => '150px').join(' ')}` };
+  // 설정 수만큼 칸을 둔다. 칸 너비는 CSS가 화면 폭에 맞춰 정한다.
+  const configs = { '--configs': run.configs.length } as CSSProperties;
 
   return (
     <>
       <Panel title="설정별 요약">
         <div className={s.scroll}>
-          <div className={s.table} style={{ minWidth: 980 }}>
+          <div className={`${s.table} ${s.summaryTable}`}>
             <div className={`${s.row} ${s.headRow} ${s.summaryCols}`}>
               <span>설정</span>
               {SUMMARY_COLUMNS.map((c) => (
@@ -62,7 +63,7 @@ export function CompareView({ run, cases, onOpenValue }: { run: TestRun; cases: 
                   <ConfigChip index={i} config={config} />
                 </span>
                 {SUMMARY_COLUMNS.map((c) => (
-                  <span key={c.key} className={`mono ${s.right} ${bestIndex(summaries, c.key) === i ? s.best : ''}`}>
+                  <span key={c.key} data-label={c.label} className={`mono ${s.right} ${bestIndex(summaries, c.key) === i ? s.best : ''}`}>
                     {c.fmt(summaries[i]!)}
                   </span>
                 ))}
@@ -83,13 +84,13 @@ export function CompareView({ run, cases, onOpenValue }: { run: TestRun; cases: 
           ))}
         </div>
         <div className={s.scroll}>
-          <div className={s.matrix} style={{ minWidth: 640 }}>
-            <div className={`${s.row} ${s.headRow}`} style={cols}>
+          <div className={s.matrix} style={configs}>
+            <div className={`${s.row} ${s.headRow} ${s.matrixCols}`}>
               <span>카테고리 값</span>
               <span className={s.right}>케이스</span>
               {run.configs.map((config, i) => (
                 <span key={i} className={s.center}>
-                  <ConfigChip index={i} config={config} />
+                  <ConfigChip index={i} config={config} compact />
                 </span>
               ))}
             </div>
@@ -100,8 +101,7 @@ export function CompareView({ run, cases, onOpenValue }: { run: TestRun; cases: 
                   <button
                     key={r.id}
                     type="button"
-                    className={`${s.row} ${s.categoryRow} ${s.rowButton}`}
-                    style={cols}
+                    className={`${s.row} ${s.categoryRow} ${s.rowButton} ${s.matrixCols}`}
                     onClick={() => {
                       const first = casesInRun(run, cases, { key: g.key, value: r.id })[0];
                       if (first) onOpenValue(g.key, r.id, first.id);
@@ -123,19 +123,19 @@ export function CompareView({ run, cases, onOpenValue }: { run: TestRun; cases: 
       </Panel>
       <Panel title="자주 틀린 체크 항목">
         <div className={s.scroll}>
-          <div className={s.table} style={{ minWidth: 640 }}>
-            <div className={`${s.row} ${s.headRow}`} style={failCols}>
+          <div className={`${s.table} ${s.failTable}`} style={configs}>
+            <div className={`${s.row} ${s.headRow} ${s.failCols}`}>
               <span>체크 항목</span>
               <span>판정</span>
               {run.configs.map((config, i) => (
                 <span key={i} className={s.center}>
-                  <ConfigChip index={i} config={config} />
+                  <ConfigChip index={i} config={config} compact />
                 </span>
               ))}
             </div>
             {failures.length ? (
               failures.map((f) => (
-                <div key={f.text} className={`${s.row} ${s.bodyRow}`} style={failCols}>
+                <div key={f.text} className={`${s.row} ${s.bodyRow} ${s.failCols}`}>
                   <span className={s.ellipsis}>{f.text}</span>
                   <span className={`mono ${s.id}`}>{JUDGE_LABEL[f.judge]}</span>
                   {f.counts.map((n, i) => (
