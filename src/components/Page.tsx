@@ -5,13 +5,12 @@ export function PageMain({ children }: { children: ReactNode }) {
   return <main className={s.main}>{children}</main>;
 }
 
-/** 페이지 제목 띠. 전역 메뉴 바로 아래에 붙는다. */
-export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+/** 페이지 제목 띠. 전역 메뉴 바로 아래에 붙는다. 제목 옆에 설명 문구는 두지 않는다. */
+export function PageHeader({ title }: { title: string }) {
   return (
     <div className={s.header}>
       <div className={s.headerInner}>
         <h1 className={s.title}>{title}</h1>
-        {subtitle && <span className={s.subtitle}>{subtitle}</span>}
       </div>
     </div>
   );

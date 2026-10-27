@@ -22,10 +22,6 @@
 }
 
 .headerInner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
   max-width: var(--content-max);
   margin: 0 auto;
   padding: 20px var(--page-gutter);
@@ -35,11 +31,6 @@
   font-size: 32px;
   font-weight: 700;
   line-height: 1.5;
-}
-
-.subtitle {
-  font-size: 14px;
-  color: var(--text-emphasis);
 }
 
 .kpis {

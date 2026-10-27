@@ -15,7 +15,7 @@ export function SessionsPage() {
 
   return (
     <>
-      <PageHeader title="대화" subtitle="세션 하나에 턴이 쌓이고, 질문 → 답변 묶음도 같은 세션의 다음 턴이에요" />
+      <PageHeader title="대화" />
       <PageMain>
         <Segmented<RunSource>
           label="출처"

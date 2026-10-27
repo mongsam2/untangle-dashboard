@@ -28,13 +28,12 @@ export function StatsPage() {
   const [sort, setSort] = useState<ToolSort>('rate');
   const toggle = (k: BlockKey) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const st = stats.data;
-  const runs = summary.data?.runs;
   const blocked = st?.guardrails.reduce((a, g) => a + g.blocked, 0) ?? 0;
   const checks = st?.guardrails.reduce((a, g) => a + g.checks, 0) ?? 0;
 
   return (
     <>
-      <PageHeader title="집계" subtitle={runs === undefined ? undefined : `${runs}건 기준 · 도구 호출·가드레일·토큰·상태를 한눈에 봅니다`} />
+      <PageHeader title="집계" />
       <PageMain>
         <KpiRow tiles={statTiles(summary.data)} />
         <FilterBar />
