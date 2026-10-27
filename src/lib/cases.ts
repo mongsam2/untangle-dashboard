@@ -1,5 +1,5 @@
 // 테스트 케이스 제목. 조회 API에는 케이스 제목이 없어서 대시보드가 들고 있는다.
-// 케이스 ID는 `X-Tangle-Test-Case` 헤더 값이며 설계 문서 `guardrails.md` §7 검증 사례와 도구 14개를 따른다.
+// 케이스 ID는 `X-Tangle-Test-Case` 헤더 값이며 설계 문서 `guardrails.md` §7 검증 사례와 도구 15개를 따른다.
 export const CASE_TITLES: Record<string, string> = {
   C01: '할 일 생성 제안 · 제목 그대로',
   C02: '할 일 조회 후 답변만',
