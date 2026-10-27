@@ -5,9 +5,10 @@ export const KIND: Record<ToolKind, { label: string; color: string; bg: string }
   query: { label: '조회', color: 'var(--data-query)', bg: 'var(--surface-emphasis)' },
   proposal: { label: '제안', color: 'var(--data-proposal)', bg: 'var(--surface-warning)' },
   briefing: { label: '브리핑', color: 'var(--data-briefing)', bg: 'var(--surface-success)' },
+  memory: { label: '기억', color: 'var(--data-memory)', bg: 'var(--surface-memory)' },
 };
 
-export const TOOL_KIND_ORDER: ToolKind[] = ['query', 'proposal', 'briefing'];
+export const TOOL_KIND_ORDER: ToolKind[] = ['query', 'proposal', 'briefing', 'memory'];
 
 export const MODEL_COLOR = 'var(--data-model)';
 export const SERVER_COLOR = 'var(--data-server)';
@@ -29,6 +30,7 @@ export const ICON_BG: Record<IconKind, string> = {
   query: 'var(--surface-emphasis)',
   proposal: 'var(--surface-warning)',
   briefing: 'var(--surface-success)',
+  memory: 'var(--surface-memory)',
   guardrail: 'var(--guard-bg)',
   server: 'var(--surface-field)',
   final: 'var(--surface-success)',
@@ -40,7 +42,7 @@ export function iconKindOf(kind: StepKind, toolKind?: ToolKind | null): IconKind
   return kind;
 }
 
-/** 도구 12개. 설계 문서 `agent-tools.md`의 순서다. 호출 수가 같을 때의 정렬 기준으로도 쓴다. */
+/** 도구 14개. 설계 문서 `agent-tools.md`의 순서다. 호출 수가 같을 때의 정렬 기준으로도 쓴다. */
 export const TOOLS: { name: string; kind: ToolKind; label: string }[] = [
   { name: 'search_todos', kind: 'query', label: '할 일 조회' },
   { name: 'search_plans', kind: 'query', label: '계획 조회' },
@@ -54,6 +56,8 @@ export const TOOLS: { name: string; kind: ToolKind; label: string }[] = [
   { name: 'propose_delete_plan', kind: 'proposal', label: '계획 삭제 제안' },
   { name: 'propose_move_plan_to_todo', kind: 'proposal', label: '계획 → 할 일 이동 제안' },
   { name: 'get_today_briefing', kind: 'briefing', label: '오늘 브리핑' },
+  { name: 'read_memory', kind: 'memory', label: '기억 읽기' },
+  { name: 'update_memory', kind: 'memory', label: '기억 고치기' },
 ];
 
 export const TOOL_ORDER = TOOLS.map((t) => t.name);
@@ -75,6 +79,7 @@ export const RAMP: Record<ToolKind, string[]> = {
   query: [1, 2, 3].map((i) => `var(--ramp-query-${i})`),
   proposal: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => `var(--ramp-proposal-${i})`),
   briefing: ['var(--ramp-briefing-1)'],
+  memory: ['var(--ramp-memory-1)', 'var(--ramp-memory-2)'],
 };
 
 export function rampColor(kind: ToolKind, i: number): string {

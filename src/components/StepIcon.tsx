@@ -1,11 +1,12 @@
 import { ICON_BG, type IconKind } from '../lib/kinds';
-import { BriefingIcon, ModelIcon, ProposalIcon, QueryIcon, ReplyIcon, ServerIcon, ShieldIcon, UserIcon } from './icons';
+import { BriefingIcon, MemoryIcon, ModelIcon, ProposalIcon, QueryIcon, ReplyIcon, ServerIcon, ShieldIcon, UserIcon } from './icons';
 
 const ICONS: Record<IconKind, (props: Record<string, never>) => JSX.Element> = {
   model: ModelIcon,
   query: QueryIcon,
   proposal: ProposalIcon,
   briefing: BriefingIcon,
+  memory: MemoryIcon,
   guardrail: ShieldIcon,
   server: ServerIcon,
   final: ReplyIcon,

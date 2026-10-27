@@ -4,6 +4,7 @@ import { useViewState } from '../../app/useViewState';
 import { Collapsible } from '../../components/Collapsible';
 import { KpiRow, Notice, PageHeader, PageMain } from '../../components/Page';
 import { Segmented } from '../../components/Segmented';
+import { TOOLS } from '../../lib/kinds';
 import { FilterBar } from '../runs/FilterBar';
 import { useRunFilters } from '../runs/useRunFilters';
 import { CaseTable } from './CaseTable';
@@ -43,7 +44,7 @@ export function StatsPage() {
           <Notice>불러오는 중…</Notice>
         ) : (
           <>
-            <Collapsible title="도구 호출" sub={`${st.tool_kinds.reduce((a, k) => a + k.count, 0)}회 · 도구 12개`} open={!!open.tools} onToggle={() => toggle('tools')} gap={24}>
+            <Collapsible title="도구 호출" sub={`${st.tool_kinds.reduce((a, k) => a + k.count, 0)}회 · 도구 ${TOOLS.length}개`} open={!!open.tools} onToggle={() => toggle('tools')} gap={24}>
               <ToolDonuts donuts={toolDonuts(st)} />
               <Segmented<ToolSort>
                 label="정렬"

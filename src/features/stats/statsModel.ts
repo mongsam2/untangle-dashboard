@@ -63,7 +63,7 @@ export function toolDonuts(stats: StatsResponse): Donut[] {
   const p = toolsByKind(stats.tools, 'proposal');
   return [
     donut(
-      '조회 · 제안 · 브리핑',
+      '조회 · 제안 · 브리핑 · 기억',
       TOOL_KIND_ORDER.map((k) => ({ label: KIND[k].label + ' 도구', v: kindCount(k), color: KIND[k].color })).filter((x) => x.v > 0),
       '회 호출',
       false,

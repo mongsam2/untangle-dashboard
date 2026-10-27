@@ -225,7 +225,7 @@ export function isErrorResponse(r: StoredResponse | null): r is ErrorResponse {
 // ── 단계 ───────────────────────────────────────────────────────────────
 
 export type StepKind = 'model' | 'tool' | 'guardrail' | 'server';
-export type ToolKind = 'query' | 'proposal' | 'briefing';
+export type ToolKind = 'query' | 'proposal' | 'briefing' | 'memory';
 export type ToolStepStatus = 'success' | 'failed';
 export type GuardrailLayer = 'input' | 'tool' | 'output' | 'limit';
 export type ServerDecision = 'correction_requested' | 'cards_assembled' | 'limit_exceeded' | 'output_rejected' | 'input_blocked';
