@@ -1,44 +1,41 @@
 /// <reference types="vitest/config" />
-import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { apiConfig, assertNoLegacyEnv, nodeMiddleware } from './server/dashboardApi';
 
-// 키·토큰은 개발 서버·미리보기 서버의 프록시에서만 붙인다. 브라우저 코드에는 VITE_ 접두사가 붙은 값만 노출된다.
-// ADMIN_API_URL이 있으면 백엔드 운영자 API(/api/v1/admin/tangle/dashboard/*)를 거쳐 배포된 탱글을 읽고,
-// 없으면 로컬 탱글 서버의 /v2/dashboard/*에 직접 붙는다. 앱과 마찬가지로 대시보드도 운영 환경에서는 백엔드를 거친다.
+// 접근 키 확인과 조회 중계(/api/*)를 개발 서버·미리보기 서버에 붙인다. Vercel에서는 api/*.ts 함수가 같은 일을 한다.
+// 운영자 키·탱글 토큰·접근 키는 서버 쪽에서만 쓴다. 브라우저 코드에는 VITE_ 접두사가 붙은 값만 노출된다.
+function dashboardApi(env: Record<string, string>): Plugin {
+  assertNoLegacyEnv(env);
+  const config = apiConfig(env);
+  const middleware = nodeMiddleware(config);
+  return {
+    name: 'dashboard-api',
+    configureServer(server) {
+      if (env.VITE_API_MODE === 'live') for (const w of config.warnings) server.config.logger.warn(`[dashboard] ${w}`);
+      server.middlewares.use(middleware);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware);
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const adminApi = env.ADMIN_API_URL;
-  const proxy: Record<string, ProxyOptions> = adminApi
-    ? {
-        '/v2/dashboard': {
-          target: adminApi,
-          changeOrigin: true,
-          rewrite: (path: string) => path.replace(/^\/v2\/dashboard/, '/api/v1/admin/tangle/dashboard'),
-          headers: env.ADMIN_KEY ? { 'X-Admin-Key': env.ADMIN_KEY } : undefined,
-        },
-      }
-    : {
-        '/v2': {
-          target: env.TANGLE_SERVER_URL || 'http://127.0.0.1:8010',
-          changeOrigin: true,
-          headers: env.TANGLE_DASHBOARD_TOKEN ? { Authorization: `Bearer ${env.TANGLE_DASHBOARD_TOKEN}` } : undefined,
-        },
-      };
   return {
-    plugins: [react()],
+    plugins: [react(), dashboardApi(env)],
     server: {
       port: 5173,
-      proxy,
     },
-    // 빌드 결과를 띄우는 `bun run preview`도 같은 프록시를 써서, 정적 호스팅 없이 한 프로세스로 배포할 수 있다.
+    // 빌드 결과를 띄우는 `bun run preview`도 같은 /api/*를 붙여, 한 프로세스로 배포할 수 있다.
     preview: {
       port: 4173,
       host: true,
-      proxy,
     },
     test: {
       environment: 'node',
-      include: ['src/**/*.test.ts'],
+      include: ['src/**/*.test.ts', 'server/**/*.test.ts'],
     },
   };
 });
