@@ -15,7 +15,7 @@ export function RunsPage() {
 
   return (
     <>
-      <PageHeader title="요청 목록" subtitle={summary ? `최근 ${summary.runs}건 · 행을 고르면 오른쪽에 처리 단계가 열립니다` : undefined} />
+      <PageHeader title="요청 목록" />
       <PageMain>
         <KpiRow tiles={listTiles(summary)} />
         <FilterBar showLegend />

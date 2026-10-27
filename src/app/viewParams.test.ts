@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backToCaseParams, backToSessionParams, closeParams, openCaseParams, openRunParams, openSessionParams, openTurnParams, readView, replayParams } from './viewParams';
+import { backToCaseParams, backToSessionParams, closeParams, filtersOnly, openCaseParams, openRunParams, openSessionParams, openTurnParams, readTestView, readView, replayParams, writeTestView } from './viewParams';
 
 const p = (s: string) => new URLSearchParams(s);
 
@@ -36,5 +36,16 @@ describe('viewParams', () => {
 
   it('닫으면 필터만 남는다', () => {
     expect(closeParams(p('source=real&run=r1&from=C01&replay=1')).toString()).toBe('source=real');
+  });
+
+  it('테스트 탭 상태는 요청 상세를 열고 닫아도 남는다', () => {
+    const tests = writeTestView(p('server=dev'), { tab: 'results', run: 'run-2', case: 'C031', filter: { key: 'info', value: 'ask' } });
+    expect(tests.toString()).toBe('server=dev&tab=results&test_run=run-2&test_case=C031&test_filter=info%3Aask');
+    expect(readTestView(closeParams(openRunParams(tests, 'r1')))).toEqual({ tab: 'results', run: 'run-2', case: 'C031', filter: { key: 'info', value: 'ask' } });
+  });
+
+  it('다른 화면으로 옮기면 테스트 탭 상태는 지운다', () => {
+    expect(filtersOnly(p('status=error&tab=results&test_run=run-2&test_case=C031&run=r1')).toString()).toBe('status=error');
+    expect(readTestView(p('tab=other&test_filter=info'))).toEqual({ tab: 'set', run: null, case: null, filter: null });
   });
 });

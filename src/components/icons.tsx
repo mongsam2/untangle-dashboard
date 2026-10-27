@@ -1,9 +1,9 @@
 // 선 아이콘. 선 색은 currentColor를 따른다.
 const common = { 'aria-hidden': true as const, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
-export function CloseIcon() {
+export function CloseIcon({ size = 18 }: { size?: number }) {
   return (
-    <svg {...common} width="18" height="18" strokeWidth="2">
+    <svg {...common} width={size} height={size} strokeWidth="2">
       <path d="M6 6l12 12" />
       <path d="M18 6L6 18" />
     </svg>
@@ -22,6 +22,38 @@ export function ChevronRight() {
   return (
     <svg {...common} width="16" height="16" strokeWidth="2" style={{ color: 'var(--icon-secondary)' }}>
       <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+export function ChevronDownIcon() {
+  return (
+    <svg {...common} width="16" height="16" strokeWidth="2">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg {...common} width={size} height={size} strokeWidth="2">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+export function MinusIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg {...common} width={size} height={size} strokeWidth="2">
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+export function ArrowRightIcon() {
+  return (
+    <svg {...common} width="16" height="16" strokeWidth="2">
+      <path d="M5 12h14M13 6l6 6-6 6" />
     </svg>
   );
 }

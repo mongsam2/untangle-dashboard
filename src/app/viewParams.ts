@@ -4,6 +4,11 @@
 //   ?case=<test_case_id>     케이스 인스펙터
 //   ?session=<session_id>    세션 인스펙터. 실행 인스펙터와 함께 있으면 세션으로 돌아가는 링크
 //   &replay=1                재생 화면(실행이 열려 있으면 실행, 아니면 세션 재생)
+// 테스트 탭(/tests)은 위 패널과 따로 자기 화면 상태를 둔다. 요청 상세를 열어도 남는다.
+//   ?tab=results             실행 결과(없으면 테스트 셋)
+//   &test_run=<id>           고른 실행(없으면 가장 최근 실행)
+//   &test_case=<id>          케이스 결과 화면에서 고른 케이스. 있으면 결과 비교 대신 케이스 결과를 보인다
+//   &test_filter=<카테고리>:<값>  케이스 결과 목록을 좁힌 카테고리 값
 // 필터(source·status)는 useRunFilters가, 서버(?server=dev|prod|local)는 AppShell이 다룬다.
 
 export interface ViewState {
@@ -76,7 +81,39 @@ export function replayParams(params: URLSearchParams, open: boolean): URLSearchP
   return write(params, { run: v.run, from: v.from, session: v.session, replay: open ? '1' : null });
 }
 
+export interface TestView {
+  tab: 'set' | 'results';
+  run: string | null;
+  case: string | null;
+  filter: { key: string; value: string } | null;
+}
+
+const TEST_KEYS = ['tab', 'test_run', 'test_case', 'test_filter'] as const;
+
+export function readTestView(params: URLSearchParams): TestView {
+  const [key, value] = (params.get('test_filter') ?? '').split(':');
+  return {
+    tab: params.get('tab') === 'results' ? 'results' : 'set',
+    run: params.get('test_run') || null,
+    case: params.get('test_case') || null,
+    filter: key && value ? { key, value } : null,
+  };
+}
+
+/** 테스트 탭의 화면 상태를 통째로 바꾼다. 다른 검색어는 그대로 둔다. */
+export function writeTestView(params: URLSearchParams, view: TestView): URLSearchParams {
+  const p = new URLSearchParams(params);
+  for (const k of TEST_KEYS) p.delete(k);
+  if (view.tab === 'results') p.set('tab', 'results');
+  if (view.run) p.set('test_run', view.run);
+  if (view.case) p.set('test_case', view.case);
+  if (view.filter) p.set('test_filter', `${view.filter.key}:${view.filter.value}`);
+  return p;
+}
+
 /** 다른 화면으로 옮길 때는 필터만 남긴다. */
 export function filtersOnly(params: URLSearchParams): URLSearchParams {
-  return closeParams(params);
+  const p = closeParams(params);
+  for (const k of TEST_KEYS) p.delete(k);
+  return p;
 }
