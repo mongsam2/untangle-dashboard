@@ -1,0 +1,254 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 72px 16px 24px;
+  overflow-y: auto;
+  background: rgb(23 33 47 / 0.5);
+}
+
+.dialog {
+  width: min(760px, 100%);
+  background: var(--surface-document);
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(15, 23, 41, 0.22);
+}
+
+.dialog:focus {
+  outline: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--surface-field);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--surface-hover);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 24px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
+  background: var(--surface-document);
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.option:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.optionOn {
+  border: 1.5px solid var(--border-focus);
+  padding: 0 15.5px;
+  background: var(--surface-hover);
+}
+
+.box {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 5px;
+  background: var(--surface-document);
+}
+
+.boxOn {
+  border-color: var(--surface-action);
+  background: var(--surface-action);
+  color: var(--text-inverse);
+}
+
+.model {
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.effort {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.note {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line-hierarchy);
+  border-radius: var(--radius-8);
+  background: var(--surface-document);
+  font: inherit;
+  color: var(--text-primary);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+}
+
+.pickRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pickLabel {
+  width: 104px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.pickChip {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--surface-document);
+  cursor: pointer;
+}
+
+.round:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.round:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.judge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.estimate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--radius-12);
+  background: var(--surface-field);
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-subtle);
+}
