@@ -42,7 +42,7 @@ export function iconKindOf(kind: StepKind, toolKind?: ToolKind | null): IconKind
   return kind;
 }
 
-/** 도구 14개. 설계 문서 `agent-tools.md`의 순서다. 호출 수가 같을 때의 정렬 기준으로도 쓴다. */
+/** 도구 15개. 설계 문서 `agent-tools.md`의 순서다. 호출 수가 같을 때의 정렬 기준으로도 쓴다. */
 export const TOOLS: { name: string; kind: ToolKind; label: string }[] = [
   { name: 'search_todos', kind: 'query', label: '할 일 조회' },
   { name: 'search_plans', kind: 'query', label: '계획 조회' },
@@ -58,6 +58,7 @@ export const TOOLS: { name: string; kind: ToolKind; label: string }[] = [
   { name: 'get_today_briefing', kind: 'briefing', label: '오늘 브리핑' },
   { name: 'read_memory', kind: 'memory', label: '기억 읽기' },
   { name: 'update_memory', kind: 'memory', label: '기억 고치기' },
+  { name: 'rewrite_memory', kind: 'memory', label: '기억 다시 쓰기' },
 ];
 
 export const TOOL_ORDER = TOOLS.map((t) => t.name);
@@ -79,7 +80,7 @@ export const RAMP: Record<ToolKind, string[]> = {
   query: [1, 2, 3].map((i) => `var(--ramp-query-${i})`),
   proposal: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => `var(--ramp-proposal-${i})`),
   briefing: ['var(--ramp-briefing-1)'],
-  memory: ['var(--ramp-memory-1)', 'var(--ramp-memory-2)'],
+  memory: ['var(--ramp-memory-1)', 'var(--ramp-memory-2)', 'var(--ramp-memory-3)'],
 };
 
 export function rampColor(kind: ToolKind, i: number): string {
