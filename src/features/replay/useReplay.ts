@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Speed } from './replayModel';
 
-/** 재생 위치를 requestAnimationFrame으로 올린다. 끝에 닿으면 멈추고, 끝에서 다시 누르면 처음부터. */
-export function useReplay(total: number) {
+/**
+ * 재생 위치를 requestAnimationFrame으로 올린다. 끝에 닿으면 멈추고, 끝에서 다시 누르면 처음부터.
+ * initialSpeed는 처음 배속이다. 재생 중에 바꾼 배속은 그대로 유지한다.
+ */
+export function useReplay(total: number, initialSpeed: Speed = 2) {
   const [pos, setPos] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<Speed>(2);
+  const [speed, setSpeed] = useState<Speed>(initialSpeed);
   const posRef = useRef(0);
   posRef.current = pos;
 

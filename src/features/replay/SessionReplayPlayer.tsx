@@ -27,7 +27,8 @@ export function SessionReplayPlayer({ sessionId, onClose }: { sessionId: string;
 
 function Player({ detail, onClose }: { detail: SessionDetailResponse; onClose: () => void }) {
   const timeline = useMemo(() => buildSessionTimeline(detail), [detail]);
-  const replay = useReplay(timeline.total);
+  // 대화는 턴이 이어져 2배속이면 말풍선을 읽기 전에 지나가므로 1배속으로 시작한다.
+  const replay = useReplay(timeline.total, 1);
   const view = useMemo(() => sessionViewAt(detail, timeline, replay.pos), [detail, timeline, replay.pos]);
   const groups = view.turnSteps.map((t) => ({ key: String(t.turnIndex), label: `턴 ${t.turnIndex} · ${shortId(detail.turns[t.turnIndex - 1]!.run.turn_id)}`, steps: t.steps }));
   return (
