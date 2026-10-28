@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { apiMode } from '../../api/client';
 import { MOCK_RUNS } from '../../api/mock/fixtures';
-import { JUDGE_COST, PARALLEL, SAMPLE_SET, attemptCost, planAttempts, type PlannedAttempt } from './sampleData';
+import { JUDGE_COST, PARALLEL, attemptCost, planAttempts, type PlannedAttempt } from './sampleData';
 import { estimate, type RunStatus, type TestConfig, type TestRun } from './testModel';
+import { TEST_SET } from './testSet';
 
 // 예시 실행 저장소. 탱글 서버에 테스트 실행 기능이 생기기 전까지 화면이 이 실행을 본다.
 // 진행 중인 실행은 시각에 맞춰 시도가 하나씩 끝나고, 새 실행도 같은 방식으로 돌아간다. 새로고침하면 처음으로 돌아간다.
@@ -18,13 +19,13 @@ interface PlannedRun {
 }
 
 const MIN = 60000;
-const ALL_CASES = SAMPLE_SET.cases.map((c) => c.id);
+const ALL_CASES = TEST_SET.cases.map((c) => c.id);
 // 예시 데이터 모드에서는 '요청 상세 보기'가 내장 예시 실행을 연다. 실제 서버에는 그 실행이 없으므로 링크를 뺀다.
 const TURN_IDS = apiMode === 'mock' ? MOCK_RUNS.filter((r) => r.run.test_case_id).map((r) => r.run.turn_id) : [];
 
 function plan(id: string, seed: number, startedAt: number, durationMs: number, configs: TestConfig[], repeats: number, caseIds: string[]): PlannedRun {
   const step = durationMs / Math.max(1, caseIds.length * configs.length * repeats);
-  return { id, startedAt, stoppedAt: null, configs, repeats, caseIds, attempts: planAttempts(seed, configs, repeats, caseIds, startedAt, step, TURN_IDS) };
+  return { id, startedAt, stoppedAt: null, configs, repeats, caseIds, attempts: planAttempts(seed, TEST_SET.cases, configs, repeats, caseIds, startedAt, step, TURN_IDS) };
 }
 
 function initialRuns(now: number): PlannedRun[] {

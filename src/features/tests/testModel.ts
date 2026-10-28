@@ -11,7 +11,7 @@ export interface TestCheck {
   judge: Judge;
 }
 
-export type CategoryKey = 'changes' | 'target' | 'feature' | 'info' | 'list' | 'position';
+export type CategoryKey = 'changes' | 'target' | 'feature' | 'info' | 'list' | 'position' | 'memory';
 
 export interface CategoryValue {
   id: string;
@@ -31,7 +31,7 @@ const v = (id: string, label: string, short = label): CategoryValue => ({ id, la
 
 export const CATEGORIES: Category[] = [
   { key: 'changes', title: '바뀌는 항목 수', values: [v('none', '없음', '항목 없음'), v('one', '1개', '항목 1개'), v('few', '2~4개', '항목 2~4개'), v('many', '5개 이상', '항목 5개 이상')] },
-  { key: 'target', title: '다루는 항목', values: [v('existing', '기존 항목', '기존'), v('new', '새 항목', '새'), v('both', '둘 다')] },
+  { key: 'target', title: '다루는 항목', values: [v('existing', '기존 항목', '기존'), v('new', '새 항목', '새'), v('both', '둘 다'), v('none', '없음', '항목 안 다룸')] },
   {
     key: 'feature',
     title: '기능',
@@ -47,15 +47,21 @@ export const CATEGORIES: Category[] = [
       v('move', '할 일↔계획 옮기기', '옮기기'),
       v('briefing', '오늘 브리핑'),
       v('query', '조회만'),
+      v('memory_only', '기억만'),
     ],
   },
-  { key: 'info', title: '정보 충분도', values: [v('in_message', '메시지에 있음'), v('from_context', '이전 대화·목록에서 앎', '이전 대화·목록'), v('ask', '물어봐야 함')] },
+  { key: 'info', title: '정보 충분도', values: [v('in_message', '메시지에 있음'), v('from_context', '이전 대화·목록·기억에서 앎', '이전 대화·목록·기억'), v('ask', '물어봐야 함')] },
   { key: 'list', title: '목록 크기', values: [v('empty', '비어 있음 (0)', '목록 0'), v('small', '보통 (1~5)', '목록 1~5'), v('medium', '많음 (6~20)', '목록 6~20'), v('large', '아주 많음 (21+)', '목록 21+')] },
   { key: 'position', title: '대화 위치', values: [v('first', '첫 턴 (0)', '첫 턴'), v('short', '짧음 (1~4)', '짧음'), v('long', '김 (5~14)', '김'), v('very_long', '아주 김 (15+)', '아주 김')] },
+  {
+    key: 'memory',
+    title: '기억',
+    values: [v('none', '없음', '기억 없음'), v('apply', '반영', '기억 반영'), v('update', '고치기', '기억 고치기'), v('keep', '고치면 안 됨', '기억 안 고침'), v('show', '보여주기', '기억 보여주기')],
+  },
 ];
 
 /** 테스트 셋의 카테고리별 케이스 수는 세 열로 나눠 보인다. 기능은 값이 많아 한 열을 혼자 쓴다. */
-export const COVERAGE_COLUMNS: CategoryKey[][] = [['changes', 'target', 'position'], ['feature'], ['info', 'list']];
+export const COVERAGE_COLUMNS: CategoryKey[][] = [['changes', 'target', 'position'], ['feature'], ['info', 'list', 'memory']];
 
 export function categoryOf(key: CategoryKey): Category {
   return CATEGORIES.find((c) => c.key === key)!;
@@ -74,13 +80,28 @@ export interface TestCase {
   changes: string;
   target: string;
   info: string;
+  /** 기억 카테고리 값 */
+  memory: string;
   /** 이전 대화의 사용자 메시지 수. 0이면 첫 턴이다. */
   previousMessages: number;
   /** 테스트 계정에 미리 넣어 두는 목록 */
   list: { todos: number; plans: number };
-  /** 정답 행동 */
+  /** 상황과 정답 행동 */
   expected: string;
   checks: TestCheck[];
+  setup: CaseSetup;
+}
+
+/** 케이스가 고른 준비 묶음의 이름. 케이스 결과 머리에 보인다. */
+export interface CaseSetup {
+  list: string;
+  memory: string;
+  /** 시작 기억의 줄 수. 0이면 빈 기억이다. */
+  memoryLines: number;
+  /** 이전 대화 이름. 없으면 null */
+  conversation: string | null;
+  /** 공통 대본의 끝부분을 이 케이스에 맞게 바꿨는지 */
+  tailChanged: boolean;
 }
 
 export interface QualityExample {
@@ -119,6 +140,8 @@ export function caseValues(c: TestCase, key: CategoryKey): string[] {
       return [listValue(c)];
     case 'position':
       return [positionValue(c)];
+    case 'memory':
+      return [c.memory];
   }
 }
 
@@ -129,9 +152,10 @@ export function featureShort(c: TestCase): string {
   return c.features[0] ? shortOf('feature', c.features[0]) : '-';
 }
 
-/** 케이스 표의 '나머지 카테고리' 칸: 기능을 뺀 다섯 값을 짧은 이름으로 잇는다. */
+/** 케이스 표의 '나머지 카테고리' 칸: 기능을 뺀 값을 짧은 이름으로 잇는다. 기억은 걸리는 케이스만 붙인다. */
 export function restSummary(c: TestCase): string {
-  return (['changes', 'target', 'info', 'list', 'position'] as const).map((k) => shortOf(k, caseValues(c, k)[0]!)).join(' · ');
+  const keys: CategoryKey[] = ['changes', 'target', 'info', 'list', 'position', ...(c.memory === 'none' ? [] : (['memory'] as const))];
+  return keys.map((k) => shortOf(k, caseValues(c, k)[0]!)).join(' · ');
 }
 
 export interface CaseTag {
@@ -150,16 +174,22 @@ export function caseTags(c: TestCase): CaseTag[] {
       valueOf('info', c.info)?.label ?? c.info,
       shortOf('list', listValue(c)),
       c.previousMessages ? `${position} (${c.previousMessages})` : position,
+      ...(c.memory === 'none' ? [] : [shortOf('memory', c.memory)]),
     ].map((text) => ({ text, tone: 'info' as const })),
   ];
 }
 
 export function previousText(c: TestCase): string {
-  return c.previousMessages ? `사용자 메시지 ${c.previousMessages}개 (고정 대본)` : '없음';
+  if (!c.previousMessages) return '없음';
+  return [c.setup.conversation, `사용자 메시지 ${c.previousMessages}개`, c.setup.tailChanged ? '끝부분 바꿈' : null].filter(Boolean).join(' · ');
 }
 
 export function listText(c: TestCase): string {
-  return c.list.todos + c.list.plans ? `할 일 ${c.list.todos} · 계획 ${c.list.plans}` : '없음';
+  return c.list.todos + c.list.plans ? `${c.setup.list} · 할 일 ${c.list.todos} · 계획 ${c.list.plans}` : '없음';
+}
+
+export function memoryText(c: TestCase): string {
+  return c.setup.memoryLines ? `${c.setup.memory} · ${c.setup.memoryLines}줄` : '없음';
 }
 
 export interface CoverageRow {

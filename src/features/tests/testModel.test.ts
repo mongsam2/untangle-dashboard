@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { planAttempts, SAMPLE_SET } from './sampleData';
+import { planAttempts } from './sampleData';
 import {
   bestIndex,
   bestPassRate,
+  CATEGORIES,
   caseTags,
   casePassCounts,
   casePassRate,
   casesInRun,
+  caseValues,
   categoryRates,
   configSummaries,
   countLevel,
@@ -15,16 +17,22 @@ import {
   failedCaseIds,
   frequentFailures,
   latestDoneRun,
+  listText,
+  memoryText,
   p90,
+  previousText,
   rateLevel,
   restSummary,
   runLabel,
   runProgress,
   toCaseFilter,
+  valueOf,
   type Attempt,
+  type CategoryKey,
   type TestCase,
   type TestRun,
 } from './testModel';
+import { CASE_FILE, TEST_SET } from './testSet';
 
 const base: TestCase = {
   id: 'C031',
@@ -33,6 +41,7 @@ const base: TestCase = {
   changes: 'one',
   target: 'existing',
   info: 'ask',
+  memory: 'none',
   previousMessages: 16,
   list: { todos: 14, plans: 9 },
   expected: '어떤 계획인지 되묻기',
@@ -41,8 +50,9 @@ const base: TestCase = {
     { text: '카드 없이 질문이 나옴', judge: 'code' },
     { text: '질문이 짧고 분명함', judge: 'grader' },
   ],
+  setup: { list: '큰 목록', memory: '빈 기억', memoryLines: 0, conversation: '긴 대화', tailChanged: true },
 };
-const first: TestCase = { ...base, id: 'C001', features: ['plan_create', 'move'], changes: 'one', target: 'new', info: 'in_message', previousMessages: 0, list: { todos: 0, plans: 0 } };
+const first: TestCase = { ...base, id: 'C001', features: ['plan_create', 'move'], changes: 'one', target: 'new', info: 'in_message', previousMessages: 0, list: { todos: 0, plans: 0 }, setup: { ...base.setup, conversation: null, tailChanged: false } };
 
 function attempt(caseId: string, config: number, repeat: number, passed: boolean, extra: Partial<Attempt> = {}): Attempt {
   return {
@@ -101,6 +111,22 @@ describe('케이스 표시', () => {
       { text: '아주 김 (16)', tone: 'info' },
     ]);
     expect(caseTags(first).at(-1)).toEqual({ text: '첫 턴', tone: 'info' });
+  });
+
+  it('기억 카테고리는 기억이 걸린 케이스에만 붙인다', () => {
+    const remembers: TestCase = { ...first, memory: 'apply' };
+    expect(restSummary(remembers)).toBe('항목 1개 · 새 · 메시지에 있음 · 목록 0 · 첫 턴 · 기억 반영');
+    expect(caseTags(remembers).at(-1)).toEqual({ text: '기억 반영', tone: 'info' });
+    expect(caseTags(first).some((t) => t.text.startsWith('기억'))).toBe(false);
+  });
+
+  it('케이스 결과의 준비 상태는 준비 묶음 이름과 크기를 함께 보인다', () => {
+    expect(previousText(base)).toBe('긴 대화 · 사용자 메시지 16개 · 끝부분 바꿈');
+    expect(previousText(first)).toBe('없음');
+    expect(listText(base)).toBe('큰 목록 · 할 일 14 · 계획 9');
+    expect(listText(first)).toBe('없음');
+    expect(memoryText(base)).toBe('없음');
+    expect(memoryText({ ...base, setup: { ...base.setup, memory: '전체 기억', memoryLines: 6 } })).toBe('전체 기억 · 6줄');
   });
 
   it('카테고리별 케이스 수는 빈 값도 남기고, 가장 많은 값을 막대 끝으로 둔다', () => {
@@ -205,11 +231,43 @@ describe('색과 어림', () => {
   });
 });
 
-describe('예시 데이터', () => {
-  it('케이스 ID가 겹치지 않고 모든 값이 카테고리에 있다', () => {
-    const ids = SAMPLE_SET.cases.map((c) => c.id);
+describe('케이스 파일', () => {
+  const cases = TEST_SET.cases;
+  const count = (key: CategoryKey) => Object.fromEntries(coverage(cases).find((g) => g.key === key)!.rows.map((r) => [r.id, r.count]));
+
+  it('설계 문서의 케이스 84개를 겹치지 않는 ID로 담는다', () => {
+    const ids = cases.map((c) => c.id);
+    expect(ids).toHaveLength(84);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const c of SAMPLE_SET.cases) expect(caseTags(c).every((t) => t.text && !t.text.includes('undefined'))).toBe(true);
+  });
+
+  it('케이스가 가리키는 목록·항목·기억·이전 대화가 파일에 있다', () => {
+    for (const c of CASE_FILE.cases) {
+      const list = CASE_FILE.lists[c.list];
+      expect(list, c.id).toBeDefined();
+      for (const key of list!.items) expect(CASE_FILE.items[key], `${c.id} ${key}`).toBeDefined();
+      expect(CASE_FILE.memories[c.startMemory], c.id).toBeDefined();
+      if (c.conversation) expect(CASE_FILE.conversations[c.conversation], c.id).toBeDefined();
+      for (const t of c.conversationTail ?? []) expect(t.turn).toBeLessThanOrEqual(CASE_FILE.conversations[c.conversation!]!.turns);
+    }
+    for (const conv of Object.values(CASE_FILE.conversations)) expect(conv.turns).toBeLessThanOrEqual(CASE_FILE.script.length);
+  });
+
+  it('모든 값이 카테고리에 있고, 케이스마다 실행 상태 체크가 있다', () => {
+    for (const c of cases) {
+      for (const cat of CATEGORIES) for (const value of caseValues(c, cat.key)) expect(valueOf(cat.key, value), `${c.id} ${cat.key}`).toBeDefined();
+      expect(c.checks.some((k) => k.text === '실행 상태 정상' && k.judge === 'code'), c.id).toBe(true);
+    }
+  });
+
+  it('카테고리별 케이스 수가 설계 문서와 같다', () => {
+    expect(count('changes')).toEqual({ none: 23, one: 43, few: 13, many: 5 });
+    expect(count('target')).toEqual({ existing: 38, new: 17, both: 6, none: 23 });
+    expect(count('info')).toEqual({ in_message: 57, from_context: 13, ask: 14 });
+    expect(count('list')).toEqual({ empty: 9, small: 35, medium: 30, large: 10 });
+    expect(count('position')).toEqual({ first: 56, short: 11, long: 10, very_long: 7 });
+    expect(count('memory')).toEqual({ none: 64, apply: 6, update: 7, keep: 5, show: 2 });
+    expect(count('feature')).toMatchObject({ todo_split: 11, plan_split: 7, memory_only: 11 });
   });
 
   it('예시 실행은 같은 씨앗이면 같은 결과이고, 시도 수가 케이스 × 설정 × 반복이다', () => {
@@ -217,15 +275,17 @@ describe('예시 데이터', () => {
       { model: 'GPT-6 Luna', effort: 'low' as const },
       { model: 'GPT-6 Luna', effort: 'medium' as const },
     ];
-    const ids = SAMPLE_SET.cases.map((c) => c.id);
-    const a = planAttempts(7, configs, 3, ids, 0, 1000, []);
+    const ids = cases.map((c) => c.id);
+    const a = planAttempts(7, cases, configs, 3, ids, 0, 1000, []);
     expect(a).toHaveLength(ids.length * 2 * 3);
-    expect(planAttempts(7, configs, 3, ids, 0, 1000, [])).toEqual(a);
+    expect(planAttempts(7, cases, configs, 3, ids, 0, 1000, [])).toEqual(a);
+    expect(a.some((x) => !x.passed)).toBe(true);
     for (const x of a) {
-      const c = SAMPLE_SET.cases.find((k) => k.id === x.caseId)!;
+      const c = cases.find((k) => k.id === x.caseId)!;
       expect(x.checks).toHaveLength(c.checks.length);
-      // 통과한 시도는 모든 체크를 지키고, 실패한 시도는 하나 이상 틀린다.
+      // 통과한 시도는 모든 체크를 지키고, 실패한 시도는 실행 상태 말고 다른 체크를 하나 이상 틀린다.
       expect(x.checks.every(Boolean)).toBe(x.passed);
+      expect(x.checks[c.checks.findIndex((k) => k.text === '실행 상태 정상')]).toBe(true);
       expect(x.quality === null).toBe(!x.passed);
     }
   });
