@@ -90,3 +90,87 @@ button.row:hover {
   justify-content: center;
   padding: 16px 24px 24px;
 }
+
+/* 핸드폰: 표 머리를 숨기고 한 대화를 세 줄 카드로 접는다.
+   1줄 시각·구분·마지막 상태, 2줄 마지막 입력, 3줄 턴·호출·토큰·비용. 화살표는 오른쪽에 둔다. */
+@media (max-width: 720px) {
+  .head {
+    padding: 16px 16px 8px;
+  }
+
+  .scroll {
+    padding: 0 0 4px;
+  }
+
+  .table {
+    min-width: 0;
+  }
+
+  .header {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto 16px;
+    grid-template-areas:
+      'time src . st st chev'
+      'pre pre pre pre pre chev'
+      'turns calls . tok cost chev';
+    gap: 4px 10px;
+    padding: 12px 16px;
+  }
+
+  .row > :nth-child(1) {
+    grid-area: time;
+  }
+
+  .row > :nth-child(2) {
+    grid-area: src;
+  }
+
+  .row > :nth-child(3) {
+    grid-area: pre;
+  }
+
+  .row > :nth-child(4) {
+    grid-area: turns;
+    text-align: left;
+  }
+
+  .row > :nth-child(5) {
+    grid-area: calls;
+    text-align: left;
+  }
+
+  .row > :nth-child(6) {
+    grid-area: tok;
+  }
+
+  .row > :nth-child(7) {
+    grid-area: cost;
+  }
+
+  .row > :nth-child(8) {
+    grid-area: st;
+    justify-self: end;
+  }
+
+  .row > :nth-child(9) {
+    grid-area: chev;
+  }
+
+  .row > .num {
+    font-size: 12px;
+  }
+
+  /* 표 머리가 없어 숫자만으로는 뜻이 안 보이므로 앞에 이름을 붙인다. */
+  .row > :nth-child(4)::before {
+    content: '턴 ';
+    color: var(--text-secondary);
+  }
+
+  .row > :nth-child(5)::before {
+    content: '호출 ';
+    color: var(--text-secondary);
+  }
+}

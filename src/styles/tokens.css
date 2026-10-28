@@ -118,3 +118,10 @@
   --content-max: 1440px;
   --page-gutter: 24px;
 }
+
+/* 핸드폰 너비(720px 이하). 화면별 모바일 배치도 같은 경계를 쓴다. */
+@media (max-width: 720px) {
+  :root {
+    --page-gutter: 16px;
+  }
+}

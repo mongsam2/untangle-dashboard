@@ -30,6 +30,7 @@
 }
 
 .navLink {
+  flex: none;
   min-height: 32px;
   padding: 0 12px;
   border: 0;
@@ -38,6 +39,7 @@
   color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -147,4 +149,42 @@
 .lock:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
+}
+
+/* 핸드폰: 메뉴가 넘치면 줄바꿈 대신 옆으로 밀어 본다. */
+@media (max-width: 720px) {
+  .navInner {
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .navInner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .brand {
+    flex: none;
+    margin-right: 4px;
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
+  .navLink {
+    padding: 0 10px;
+  }
+
+  .mode,
+  .sample,
+  .servers,
+  .serverName,
+  .serverButton,
+  .lock {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .servers {
+    padding-left: 8px;
+  }
 }

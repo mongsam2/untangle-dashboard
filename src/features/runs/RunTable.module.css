@@ -102,3 +102,69 @@ button.row:hover {
   justify-content: center;
   padding: 16px 24px 24px;
 }
+
+/* 핸드폰: 표 머리를 숨기고 한 요청을 세 줄 카드로 접는다.
+   1줄 시각·구분, 2줄 내용 요약, 3줄 응답과 토큰·비용·시간. 화살표는 오른쪽에 둔다. */
+@media (max-width: 720px) {
+  .head {
+    padding: 16px 16px 8px;
+  }
+
+  .scroll {
+    padding: 0 0 4px;
+  }
+
+  .table {
+    min-width: 0;
+  }
+
+  .header {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto 16px;
+    grid-template-areas:
+      'time src src src src chev'
+      'sum sum sum sum sum chev'
+      'ask ask tok cost dur chev';
+    gap: 4px 10px;
+    padding: 12px 16px;
+  }
+
+  .row > :nth-child(1) {
+    grid-area: time;
+  }
+
+  .row > :nth-child(2) {
+    grid-area: src;
+  }
+
+  .row > :nth-child(3) {
+    grid-area: sum;
+  }
+
+  .row > :nth-child(4) {
+    grid-area: ask;
+  }
+
+  .row > :nth-child(5) {
+    grid-area: tok;
+  }
+
+  .row > :nth-child(6) {
+    grid-area: cost;
+  }
+
+  .row > :nth-child(7) {
+    grid-area: dur;
+  }
+
+  .row > :nth-child(8) {
+    grid-area: chev;
+  }
+
+  .row > .num {
+    font-size: 12px;
+  }
+}

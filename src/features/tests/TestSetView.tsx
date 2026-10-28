@@ -123,7 +123,7 @@ function CaseTable({ set, lastRun, onOpenCase }: { set: TestSet; lastRun: TestRu
         </div>
       )}
       <div className={s.scroll}>
-        <div className={s.table} style={{ minWidth: 1040 }}>
+        <div className={`${s.table} ${s.caseTable}`}>
           <div className={`${s.row} ${s.headRow} ${s.caseCols}`}>
             <span>ID</span>
             <span>마지막 요청</span>

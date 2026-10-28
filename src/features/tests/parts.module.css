@@ -109,6 +109,10 @@
   color: var(--text-inverse);
 }
 
+.chipText {
+  min-width: 0;
+}
+
 .letterA {
   background: var(--data-model);
 }
@@ -270,4 +274,28 @@
 .menuItem[aria-selected='true'] {
   background: var(--surface-emphasis);
   color: var(--text-emphasis);
+}
+
+@media (max-width: 720px) {
+  .panel {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .panelTitle {
+    font-size: 18px;
+  }
+
+  .rate_md {
+    width: 64px;
+    height: 28px;
+  }
+
+  .chipCompact {
+    padding: 4px;
+  }
+
+  .chipCompact .chipText {
+    display: none;
+  }
 }
