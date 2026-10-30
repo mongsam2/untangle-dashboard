@@ -3,23 +3,27 @@ import { Button } from '../../components/Button';
 import { CheckIcon, CloseIcon, MinusIcon, PlusIcon } from '../../components/icons';
 import s from './NewRunModal.module.css';
 import { Meta, Tag } from './parts';
-import { attemptCost, EFFORTS, JUDGE_COST, JUDGE_LABEL_TEXT, MODELS, PARALLEL, SAMPLE_CONFIG_OPTIONS } from './sampleData';
 import {
   CATEGORIES,
   caseValues,
   CONFIG_LETTERS,
-  estimate,
+  CONFIG_OPTIONS,
+  EFFORTS,
   failedCaseIds,
   fmtMinutes,
+  graderLabel,
   MAX_CONFIGS,
+  modelLabel,
+  MODELS,
   sameConfig,
   type CategoryKey,
   type Effort,
+  type Grader,
   type TestCase,
   type TestConfig,
   type TestRun,
 } from './testModel';
-import type { NewRun } from './useTestRuns';
+import type { NewRun, TestRuns } from './useTestRuns';
 
 type Scope = 'all' | 'category' | 'failed';
 
@@ -30,15 +34,18 @@ interface NewRunModalProps {
   cases: TestCase[];
   /** '지난 실행에서 실패한 케이스'가 보는 실행 */
   lastRun: TestRun | null;
+  grader: Grader;
+  estimate: TestRuns['estimate'];
   onClose: () => void;
-  onStart: (run: NewRun) => void;
+  /** 실패하면 팝업에 오류 문구를 남긴다. */
+  onStart: (run: NewRun) => Promise<void>;
 }
 
 // 새 실행 만들기 팝업. 설정은 최대 2개(A·B)까지 고르고, 고른 순서대로 A·B가 된다.
-export function NewRunModal({ cases, lastRun, onClose, onStart }: NewRunModalProps) {
+export function NewRunModal({ cases, lastRun, grader, estimate, onClose, onStart }: NewRunModalProps) {
   const titleId = useId();
   const dialog = useRef<HTMLDivElement>(null);
-  const [options, setOptions] = useState<TestConfig[]>(SAMPLE_CONFIG_OPTIONS);
+  const [options, setOptions] = useState<TestConfig[]>(CONFIG_OPTIONS);
   const [selected, setSelected] = useState<number[]>([0, 1]);
   const [adding, setAdding] = useState(false);
   const [model, setModel] = useState(MODELS[0]!);
@@ -46,6 +53,8 @@ export function NewRunModal({ cases, lastRun, onClose, onStart }: NewRunModalPro
   const [scope, setScope] = useState<Scope>('all');
   const [picks, setPicks] = useState<Partial<Record<CategoryKey, string[]>>>({});
   const [repeats, setRepeats] = useState(3);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 진행 중인 실행 때문에 부모가 1초마다 다시 그려도 포커스를 다시 옮기지 않게 처음 한 번만 건다.
   const closeRef = useRef(onClose);
@@ -70,7 +79,14 @@ export function NewRunModal({ cases, lastRun, onClose, onStart }: NewRunModalPro
     });
   });
   const configs = selected.map((i) => options[i]!);
-  const est = estimate(configs.map(attemptCost), JUDGE_COST, chosen.length, repeats, PARALLEL);
+  const est = estimate(configs, chosen.length, repeats);
+  const submit = () => {
+    setStarting(true);
+    setError(null);
+    onStart({ configs, repeats, caseIds: chosen.map((c) => c.id) })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : '실행을 시작하지 못했어요.'))
+      .finally(() => setStarting(false));
+  };
 
   const toggle = (i: number) => setSelected((cur) => (cur.includes(i) ? cur.filter((x) => x !== i) : cur.length < MAX_CONFIGS ? [...cur, i] : cur));
   const add = () => {
@@ -109,7 +125,7 @@ export function NewRunModal({ cases, lastRun, onClose, onStart }: NewRunModalPro
                 return (
                   <button key={`${o.model}-${o.effort}`} type="button" role="checkbox" aria-checked={on} disabled={full} className={`${s.option} ${on ? s.optionOn : ''}`} onClick={() => toggle(i)}>
                     <span className={`${s.box} ${on ? s.boxOn : ''}`}>{on && <CheckIcon size={14} />}</span>
-                    <span className={s.model}>{o.model}</span>
+                    <span className={s.model}>{modelLabel(o.model)}</span>
                     <span className={s.effort}>추론 {o.effort}</span>
                     <span className={s.note}>{on ? CONFIG_LETTERS[order] : ''}</span>
                   </button>
@@ -121,7 +137,7 @@ export function NewRunModal({ cases, lastRun, onClose, onStart }: NewRunModalPro
                 <select className={s.select} aria-label="모델" value={model} onChange={(e) => setModel(e.target.value)}>
                   {MODELS.map((m) => (
                     <option key={m} value={m}>
-                      {m}
+                      {modelLabel(m)}
                     </option>
                   ))}
                 </select>
@@ -192,22 +208,27 @@ export function NewRunModal({ cases, lastRun, onClose, onStart }: NewRunModalPro
             <section className={s.section}>
               <h3 className={s.label}>채점 모델</h3>
               <div className={s.judge}>
-                <span>{JUDGE_LABEL_TEXT}</span>
+                <span>{graderLabel(grader)}</span>
                 <Tag tone="neutral">고정</Tag>
               </div>
             </section>
           </div>
           <div className={s.estimate}>
             <Meta label="예상 호출" value={`${est.calls}회`} mono wide />
-            <Meta label="예상 비용" value={`약 $${est.costUsd.toFixed(2)}`} mono wide />
-            <Meta label="예상 시간" value={`약 ${fmtMinutes(est.durationMs)}`} mono wide />
+            <Meta label="예상 비용" value={est.costUsd === null ? '–' : `약 $${est.costUsd.toFixed(2)}`} mono wide />
+            <Meta label="예상 시간" value={est.durationMs === null ? '–' : `약 ${fmtMinutes(est.durationMs)}`} mono wide />
           </div>
         </div>
         <div className={s.foot}>
+          {error && (
+            <span className={s.error} role="alert">
+              {error}
+            </span>
+          )}
           <Button variant="outline" onClick={onClose}>
             취소
           </Button>
-          <Button variant="primary" disabled={!configs.length || !chosen.length} onClick={() => onStart({ configs, repeats, caseIds: chosen.map((c) => c.id) })}>
+          <Button variant="primary" disabled={!configs.length || !chosen.length || starting} onClick={submit}>
             실행 시작
           </Button>
         </div>

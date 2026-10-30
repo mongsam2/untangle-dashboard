@@ -151,10 +151,11 @@ function Attempts({ run, c, config }: { run: TestRun; c: TestCase; config: numbe
         <Meta label="품질" value={fmtQuality(a.quality)} mono wide />
         <Meta label="응답" value={fmtSeconds(a.latencyMs)} mono wide />
         <Meta label="비용" value={fmtUsd(a.costUsd)} mono wide />
+        <Meta label="채점 비용" value={fmtUsd(a.graderCostUsd)} mono wide />
       </div>
       <div>
         {c.checks.map((check, k) => (
-          <CheckRow key={k} check={check} ok={a.checks[k] ?? false} />
+          <CheckRow key={k} check={check} result={a.checks[k]} />
         ))}
       </div>
       <div className={s.reason}>

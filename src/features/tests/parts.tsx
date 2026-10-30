@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '../../components/Button';
-import { CheckIcon, ChevronDownIcon, CloseIcon } from '../../components/icons';
+import { CheckIcon, ChevronDownIcon, CloseIcon, MinusIcon } from '../../components/icons';
 import s from './parts.module.css';
-import { CONFIG_LETTERS, configShort, JUDGE_LABEL, type RateLevel, type TestCheck, type TestConfig } from './testModel';
+import { CONFIG_LETTERS, configShort, JUDGE_LABEL, type CheckResult, type RateLevel, type TestCheck, type TestConfig } from './testModel';
 
 // 테스트 탭 전용 조각. 피그마 "Dashboard v2 · Design System"의 테스트 탭 컴포넌트(648:1449)와 Tag를 옮겼다.
 
@@ -49,15 +49,18 @@ export function Meta({ label, value, mono, wide }: { label: string; value: React
   );
 }
 
-/** 체크리스트 한 줄: 통과·실패 표시, 체크 항목, 판정 방법 */
-export function CheckRow({ check, ok }: { check: TestCheck; ok: boolean }) {
+/** 체크리스트 한 줄: 통과·실패·판정 없음 표시, 체크 항목, 실제로 판정한 쪽(판정 전이면 정해 둔 방법) */
+export function CheckRow({ check, result }: { check: TestCheck; result: CheckResult | undefined }) {
+  const passed = result?.passed ?? null;
+  const [mark, label, icon] =
+    passed === null ? [s.markNone, '판정 없음', <MinusIcon size={14} />] : passed ? [s.markPass, '통과', <CheckIcon size={14} />] : [s.markFail, '실패', <CloseIcon size={14} />];
   return (
-    <div className={s.check}>
-      <span className={`${s.mark} ${ok ? s.markPass : s.markFail}`} aria-label={ok ? '통과' : '실패'}>
-        {ok ? <CheckIcon size={14} /> : <CloseIcon size={14} />}
+    <div className={s.check} title={result?.reason ?? undefined}>
+      <span className={`${s.mark} ${mark}`} aria-label={label}>
+        {icon}
       </span>
       <span className={s.checkText}>{check.text}</span>
-      <span className={`mono ${s.judge}`}>{JUDGE_LABEL[check.judge]}</span>
+      <span className={`mono ${s.judge}`}>{JUDGE_LABEL[result?.judgedBy ?? check.judge]}</span>
     </div>
   );
 }

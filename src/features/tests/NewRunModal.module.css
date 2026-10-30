@@ -253,6 +253,14 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.error {
+  flex: 1 1 auto;
+  align-self: center;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-danger);
+}
+
 @media (max-width: 720px) {
   .scrim {
     padding: 12px 8px;

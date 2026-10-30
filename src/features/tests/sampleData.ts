@@ -1,23 +1,11 @@
-// 테스트 탭의 예시 실행 데이터. 탱글 서버의 테스트 실행 기능이 생기면 이 파일을 대신한다.
+// 테스트 탭의 예시 실행 데이터. mock 모드에서 탱글 서버의 테스트 실행 대신 쓴다.
 // 케이스는 케이스 파일(testSet.json)을 쓰고, 실행 결과만 고정 씨앗의 난수로 만든다. 예시 시도에는 탱글 응답이 없다.
 import type { Attempt, AttemptCost, Effort, TestCase, TestConfig } from './testModel';
 
 // ── 설정과 비용 ───────────────────────────────────────────────────────
 
-export const MODELS = ['GPT-6 Luna', 'GPT-6 Sol'];
-export const EFFORTS: Effort[] = ['low', 'medium', 'high'];
-
-/** 새 실행 팝업에 처음 보이는 설정 */
-export const SAMPLE_CONFIG_OPTIONS: TestConfig[] = [
-  { model: 'GPT-6 Luna', effort: 'low' },
-  { model: 'GPT-6 Luna', effort: 'medium' },
-  { model: 'GPT-6 Sol', effort: 'low' },
-  { model: 'GPT-6 Luna', effort: 'high' },
-];
-
-/** 채점 모델은 실행마다 바꾸지 않는다. */
-export const JUDGE_LABEL_TEXT = 'GPT-6 Sol · 추론 medium';
-export const JUDGE_COST: AttemptCost = { costUsd: 0.0049, latencyMs: 2500 };
+/** 채점 한 번의 평균 비용·시간 */
+export const JUDGE_COST: AttemptCost = { costUsd: 0.031, latencyMs: 9000 };
 /** 동시에 돌리는 시도 수 */
 export const PARALLEL = 4;
 
@@ -25,7 +13,7 @@ const EFFORT_COST: Record<Effort, number> = { low: 0.0085, medium: 0.0135, high:
 const EFFORT_LATENCY: Record<Effort, number> = { low: 4000, medium: 6200, high: 9800 };
 const EFFORT_PASS: Record<Effort, number> = { low: -0.07, medium: 0.03, high: 0.06 };
 const EFFORT_QUALITY: Record<Effort, number> = { low: 0, medium: 0.12, high: 0.2 };
-const isSol = (c: TestConfig) => c.model.endsWith('Sol');
+const isSol = (c: TestConfig) => c.model === 'gpt-6-sol';
 
 /** 시도 한 번의 평균 비용·응답 시간. 새 실행 어림에 쓴다. */
 export function attemptCost(c: TestConfig): AttemptCost {
@@ -117,6 +105,11 @@ export function planAttempts(
         const base = attemptCost(config);
         const listSize = c.list.todos + c.list.plans;
         const index = out.length;
+        // 코드 판정에서 틀리면 채점 모델을 부르지 않아 채점 항목은 판정 없음이다.
+        const codeFailed = c.checks.some((check, k) => check.judge === 'code' && failed.has(k));
+        const checks = c.checks.map((check, k) =>
+          codeFailed && check.judge === 'grader' ? { passed: null, judgedBy: null, reason: null } : { passed: !failed.has(k), judgedBy: check.judge, reason: null },
+        );
         out.push({
           caseId: id,
           config: i,
@@ -126,7 +119,8 @@ export function planAttempts(
           quality,
           latencyMs: Math.round(jitter(base.latencyMs + (listSize > 20 ? 900 : listSize > 5 ? 400 : 0) + c.previousMessages * 40, 0.3)),
           costUsd: jitter(base.costUsd * (1 + c.previousMessages * 0.02), 0.2),
-          checks: c.checks.map((_, k) => !failed.has(k)),
+          graderCostUsd: codeFailed ? null : jitter(JUDGE_COST.costUsd, 0.2),
+          checks,
           reason: passed ? PASS_REASON[quality!] : `틀린 체크: ${[...failed].sort((a, b) => a - b).map((k) => c.checks[k]!.text).join(', ')}`,
           reply: '',
           turnId: turnIds.length ? turnIds[index % turnIds.length]! : null,

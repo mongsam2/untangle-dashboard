@@ -11,7 +11,14 @@ export function RunningView({ run, cases }: { run: TestRun; cases: TestCase[] })
   const perConfig = configProgress(run);
   const byId = new Map(cases.map((c) => [c.id, c]));
   const recent = run.attempts.slice(-RECENT).reverse();
-  const time = [`${Math.floor(p.elapsedMs / 60000)}분 지남`, p.remainingMs === null ? null : `약 ${fmtMinutes(p.remainingMs)} 남음`, `지금까지 ${fmtUsd(p.costUsd, 2)}`].filter(Boolean).join(' · ');
+  const time = [
+    `${Math.floor(p.elapsedMs / 60000)}분 지남`,
+    p.remainingMs === null ? null : `약 ${fmtMinutes(p.remainingMs)} 남음`,
+    `지금까지 ${fmtUsd(p.costUsd, 2)}`,
+    `채점 ${fmtUsd(p.graderCostUsd, 2)}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <>

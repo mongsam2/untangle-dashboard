@@ -10,11 +10,15 @@ import {
   casesInRun,
   caseValues,
   categoryRates,
+  configShort,
   configSummaries,
   countLevel,
   coverage,
+  DEFAULT_GRADER,
   estimate,
+  estimateFromRun,
   failedCaseIds,
+  fromServerRun,
   frequentFailures,
   latestDoneRun,
   listText,
@@ -29,6 +33,7 @@ import {
   valueOf,
   type Attempt,
   type CategoryKey,
+  type CheckResult,
   type TestCase,
   type TestRun,
 } from './testModel';
@@ -54,6 +59,9 @@ const base: TestCase = {
 };
 const first: TestCase = { ...base, id: 'C001', features: ['plan_create', 'move'], changes: 'one', target: 'new', info: 'in_message', previousMessages: 0, list: { todos: 0, plans: 0 }, setup: { ...base.setup, conversation: null, tailChanged: false } };
 
+const ok: CheckResult = { passed: true, judgedBy: 'code', reason: null };
+const wrong: CheckResult = { passed: false, judgedBy: 'code', reason: '질문 없음' };
+
 function attempt(caseId: string, config: number, repeat: number, passed: boolean, extra: Partial<Attempt> = {}): Attempt {
   return {
     caseId,
@@ -64,7 +72,8 @@ function attempt(caseId: string, config: number, repeat: number, passed: boolean
     quality: passed ? 2 : null,
     latencyMs: 4000,
     costUsd: 0.01,
-    checks: [true, passed, true],
+    graderCostUsd: passed ? 0.03 : null,
+    checks: [ok, passed ? ok : wrong, ok],
     reason: '',
     reply: '',
     turnId: null,
@@ -78,11 +87,12 @@ const run: TestRun = {
   updatedAt: '2026-10-27T05:28:00Z',
   status: 'done',
   configs: [
-    { model: 'GPT-6 Luna', effort: 'low' },
-    { model: 'GPT-6 Luna', effort: 'medium' },
+    { model: 'gpt-6-luna', effort: 'low' },
+    { model: 'gpt-6-luna', effort: 'medium' },
   ],
   repeats: 2,
   caseIds: ['C001', 'C031'],
+  grader: DEFAULT_GRADER,
   attempts: [
     attempt('C001', 0, 1, true, { latencyMs: 3000, quality: 3 }),
     attempt('C001', 1, 1, true, { latencyMs: 6000 }),
@@ -148,6 +158,15 @@ describe('실행 결과', () => {
     expect(b!.costUsd).toBeCloseTo(0.05);
   });
 
+  it('단가를 모르는 시도의 비용은 빼고 더하고, 모두 모르면 비어 있다', () => {
+    const unknown: TestRun = { ...run, attempts: run.attempts.map((a) => (a.config === 1 ? { ...a, costUsd: null } : a)) };
+    const [a, b] = configSummaries(unknown);
+    expect(a!.costUsd).toBeCloseTo(0.04);
+    expect(b).toMatchObject({ costUsd: null, costPerAttempt: null });
+    expect(runProgress(unknown).costUsd).toBeCloseTo(0.04);
+    expect(runProgress(run).graderCostUsd).toBeCloseTo(0.15);
+  });
+
   it('칸마다 더 나은 설정을 고른다. 같으면 고르지 않는다', () => {
     const summaries = configSummaries(run);
     expect(bestIndex(summaries, 'passRate')).toBe(1);
@@ -171,6 +190,13 @@ describe('실행 결과', () => {
     expect(frequentFailures(run, [base, first])).toEqual([{ text: '카드 없이 질문이 나옴', judge: 'code', counts: [2, 1] }]);
   });
 
+  it('자주 틀린 체크 항목은 실제로 판정한 쪽을 보이고, 판정하지 않은 항목은 세지 않는다', () => {
+    const unjudged: CheckResult = { passed: null, judgedBy: null, reason: null };
+    const byGrader: CheckResult = { passed: false, judgedBy: 'grader', reason: '날짜를 지어냄' };
+    const graded: TestRun = { ...run, attempts: [attempt('C031', 0, 1, false, { checks: [ok, byGrader, unjudged] })] };
+    expect(frequentFailures(graded, [base])).toEqual([{ text: '카드 없이 질문이 나옴', judge: 'grader', counts: [1, 0] }]);
+  });
+
   it('케이스 반복 통과 수와 통과율', () => {
     expect(casePassCounts(run, 'C031')).toEqual([
       { passed: 0, total: 2 },
@@ -186,6 +212,68 @@ describe('실행 결과', () => {
     const half: TestRun = { ...run, status: 'running', attempts: run.attempts.slice(0, 4) };
     expect(runProgress(half)).toMatchObject({ done: 4, total: 8, ratio: 0.5, elapsedMs: 8 * 60000, remainingMs: 8 * 60000 });
     expect(runProgress({ ...half, attempts: [] }).remainingMs).toBeNull();
+  });
+
+  it('설정 칩은 모델 ID를 화면 이름의 끝 단어로 줄인다', () => {
+    expect(configShort({ model: 'gpt-6-luna', effort: 'low' })).toBe('Luna · low');
+    expect(configShort({ model: 'gpt-7', effort: 'high' })).toBe('gpt-7 · high');
+  });
+
+  it('탱글 서버 응답을 화면 모양으로 바꾼다. 목록 응답에는 시도가 없다', () => {
+    const summary = {
+      id: '0b5c1d3e-8f2a-4c1b-9d7e-6a5b4c3d2e1f',
+      status: 'running' as const,
+      started_at: '2026-10-30T05:00:00Z',
+      updated_at: '2026-10-30T05:03:00Z',
+      finished_at: null,
+      configs: [{ model: 'gpt-6-luna', effort: 'low' }],
+      repeats: 1,
+      case_ids: ['C031'],
+      grader: { model: 'claude-opus-5-5', effort: 'medium' },
+      done: 1,
+      total: 1,
+    };
+    expect(fromServerRun(summary)).toMatchObject({ id: summary.id, startedAt: summary.started_at, caseIds: ['C031'], grader: summary.grader, attempts: [] });
+    const detail = fromServerRun({
+      ...summary,
+      attempts: [
+        {
+          case_id: 'C031',
+          config: 0,
+          repeat: 1,
+          finished_at: '2026-10-30T05:02:00Z',
+          passed: false,
+          quality: null,
+          latency_ms: 4100,
+          model_calls: 2,
+          tool_calls: 1,
+          cost_usd: null,
+          checks: [{ passed: false, judged_by: 'grader', reason: '날짜를 지어냄' }],
+          reason: '질문이 짧고 분명함: 날짜를 지어냄',
+          reply: '언제로 옮길까?',
+          turn_id: null,
+          grader_model: 'claude-opus-5-5',
+          grader_cost_usd: 0.031,
+        },
+      ],
+    });
+    expect(detail.attempts).toEqual([
+      {
+        caseId: 'C031',
+        config: 0,
+        repeat: 1,
+        finishedAt: '2026-10-30T05:02:00Z',
+        passed: false,
+        quality: null,
+        latencyMs: 4100,
+        costUsd: null,
+        graderCostUsd: 0.031,
+        checks: [{ passed: false, judgedBy: 'grader', reason: '날짜를 지어냄' }],
+        reason: '질문이 짧고 분명함: 날짜를 지어냄',
+        reply: '언제로 옮길까?',
+        turnId: null,
+      },
+    ]);
   });
 
   it('실행 이름은 한국 시간 시작 시각이다', () => {
@@ -228,6 +316,17 @@ describe('색과 어림', () => {
     expect(est.calls).toBe(60);
     expect(est.costUsd).toBeCloseTo(30 * 0.015 + 30 * 0.025);
     expect(est.durationMs).toBe((30 * 6000 + 30 * 8000) / 4);
+  });
+
+  it('지난 실행으로 어림: 같은 설정의 시도당 탱글·채점 비용과 시도 하나에 걸린 간격을 쓴다', () => {
+    const luna = run.configs[1]!;
+    const est = estimateFromRun(run, [luna], 10, 3);
+    expect(est.calls).toBe(30);
+    // 설정 B: 시도 4개의 탱글 비용 0.05, 채점 비용 0.03 × 통과 3번
+    expect(est.costUsd).toBeCloseTo(30 * ((0.05 + 0.09) / 4));
+    expect(est.durationMs).toBe(((8 * 60000) / 8) * 30);
+    expect(estimateFromRun(run, [luna, { model: 'gpt-6-sol', effort: 'low' }], 10, 3)).toMatchObject({ calls: 60, costUsd: null });
+    expect(estimateFromRun(null, [luna], 10, 3)).toEqual({ calls: 30, costUsd: null, durationMs: null });
   });
 });
 
@@ -272,8 +371,8 @@ describe('케이스 파일', () => {
 
   it('예시 실행은 같은 씨앗이면 같은 결과이고, 시도 수가 케이스 × 설정 × 반복이다', () => {
     const configs = [
-      { model: 'GPT-6 Luna', effort: 'low' as const },
-      { model: 'GPT-6 Luna', effort: 'medium' as const },
+      { model: 'gpt-6-luna', effort: 'low' as const },
+      { model: 'gpt-6-luna', effort: 'medium' as const },
     ];
     const ids = cases.map((c) => c.id);
     const a = planAttempts(7, cases, configs, 3, ids, 0, 1000, []);
@@ -284,9 +383,14 @@ describe('케이스 파일', () => {
       const c = cases.find((k) => k.id === x.caseId)!;
       expect(x.checks).toHaveLength(c.checks.length);
       // 통과한 시도는 모든 체크를 지키고, 실패한 시도는 실행 상태 말고 다른 체크를 하나 이상 틀린다.
-      expect(x.checks.every(Boolean)).toBe(x.passed);
-      expect(x.checks[c.checks.findIndex((k) => k.text === '실행 상태 정상')]).toBe(true);
+      expect(x.checks.every((k) => k.passed === true)).toBe(x.passed);
+      expect(x.checks.some((k) => k.passed === false)).toBe(!x.passed);
+      expect(x.checks[c.checks.findIndex((k) => k.text === '실행 상태 정상')]?.passed).toBe(true);
       expect(x.quality === null).toBe(!x.passed);
+      // 코드 판정에서 틀리면 채점 모델을 부르지 않는다.
+      const codeFailed = x.checks.some((k, i) => k.passed === false && c.checks[i]!.judge === 'code');
+      expect(x.graderCostUsd === null).toBe(codeFailed);
+      if (codeFailed) expect(x.checks.filter((_, i) => c.checks[i]!.judge === 'grader').every((k) => k.passed === null)).toBe(true);
     }
   });
 });

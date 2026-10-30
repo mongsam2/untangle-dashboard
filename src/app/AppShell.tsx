@@ -18,12 +18,11 @@ export interface ShellContext {
   toggleFilters: () => void;
 }
 
-// sample: 서버 API가 아직 없어 어느 모드에서나 예시 데이터만 보이는 화면
-const NAV: { path: string; label: string; sample?: boolean }[] = [
+const NAV: { path: string; label: string }[] = [
   { path: '/runs', label: '요청 목록' },
   { path: '/sessions', label: '대화' },
   { path: '/stats', label: '집계' },
-  { path: '/tests', label: '테스트', sample: true },
+  { path: '/tests', label: '테스트' },
 ];
 
 // 흰 전역 메뉴, 본문, 오른쪽 상세 패널.
@@ -78,7 +77,6 @@ export function AppShell() {
             <span className={s.mode}>예시 데이터</span>
           ) : (
             <div className={s.servers}>
-              {current.sample && <span className={s.sample}>예시 데이터</span>}
               {connection.servers.length > 1 ? (
                 <div className={s.serverGroup} role="group" aria-label="서버">
                   {connection.servers.map((id) => (
