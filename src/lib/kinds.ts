@@ -42,10 +42,9 @@ export function iconKindOf(kind: StepKind, toolKind?: ToolKind | null): IconKind
   return kind;
 }
 
-/** 도구 15개. 설계 문서 `agent-tools.md`의 순서다. 호출 수가 같을 때의 정렬 기준으로도 쓴다. */
+/** 도구 14개. 설계 문서 `agent-tools.md`의 순서다. 호출 수가 같을 때의 정렬 기준으로도 쓴다. */
 export const TOOLS: { name: string; kind: ToolKind; label: string }[] = [
-  { name: 'search_todos', kind: 'query', label: '할 일 조회' },
-  { name: 'search_plans', kind: 'query', label: '계획 조회' },
+  { name: 'search_items', kind: 'query', label: '할 일·계획 조회' },
   { name: 'get_items', kind: 'query', label: 'ID로 조회' },
   { name: 'propose_create_todo', kind: 'proposal', label: '할 일 생성 제안' },
   { name: 'propose_update_todo', kind: 'proposal', label: '할 일 변경 제안' },
@@ -61,7 +60,17 @@ export const TOOLS: { name: string; kind: ToolKind; label: string }[] = [
   { name: 'rewrite_memory', kind: 'memory', label: '기억 다시 쓰기' },
 ];
 
-export const TOOL_ORDER = TOOLS.map((t) => t.name);
+/** 2026-10-30에 search_items로 합친 옛 조회 도구다. 그 전 기록의 이름 표시에만 쓴다. */
+const LEGACY_TOOLS: typeof TOOLS = [
+  { name: 'search_todos', kind: 'query', label: '할 일 조회' },
+  { name: 'search_plans', kind: 'query', label: '계획 조회' },
+];
+
+export const TOOL_ORDER = [...TOOLS, ...LEGACY_TOOLS].map((t) => t.name);
+
+function findTool(name: string) {
+  return TOOLS.find((t) => t.name === name) ?? LEGACY_TOOLS.find((t) => t.name === name);
+}
 
 export function toolOrderIndex(name: string): number {
   const i = TOOL_ORDER.indexOf(name);
@@ -69,11 +78,11 @@ export function toolOrderIndex(name: string): number {
 }
 
 export function toolKindOf(name: string): ToolKind {
-  return TOOLS.find((t) => t.name === name)?.kind ?? 'query';
+  return findTool(name)?.kind ?? 'query';
 }
 
 export function toolLabel(name: string): string {
-  return TOOLS.find((t) => t.name === name)?.label ?? name;
+  return findTool(name)?.label ?? name;
 }
 
 export const RAMP: Record<ToolKind, string[]> = {
