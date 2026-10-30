@@ -5,7 +5,7 @@ import { ArrowRightIcon } from '../../components/icons';
 import { Notice } from '../../components/Page';
 import { CheckRow, ConfigChip, Dropdown, Meta, RateCell, Tag, type TagTone } from './parts';
 import {
-  caseTags,
+  caseTagGroups,
   casePassCounts,
   casesInRun,
   CONFIG_LETTERS,
@@ -104,11 +104,18 @@ function CaseDetail({ run, c }: { run: TestRun; c: TestCase }) {
         <h2 className={s.caseTitle}>
           <span className={`mono ${s.caseTitleId}`}>{c.id}</span>“{c.message}”
         </h2>
-        <div className={s.tags}>
-          {caseTags(c).map((t) => (
-            <Tag key={t.text} tone={t.tone}>
-              {t.text}
-            </Tag>
+        <div className={s.tagGroups}>
+          {caseTagGroups(c).map((g) => (
+            <div key={g.title} className={s.tagGroup}>
+              <span className={s.tagGroupTitle}>{g.title}</span>
+              <div className={s.tags}>
+                {g.values.map((value) => (
+                  <Tag key={value} tone={g.tone}>
+                    {value}
+                  </Tag>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
         <div className={s.setup}>

@@ -155,35 +155,42 @@ export function caseValues(c: TestCase, key: CategoryKey): string[] {
 }
 
 const shortOf = (key: CategoryKey, id: string) => valueOf(key, id)?.short ?? id;
+const labelOf = (key: CategoryKey, id: string) => valueOf(key, id)?.label ?? id;
+
+/** 사용자 요청을 뺀 카테고리. 기억은 걸리는 케이스만 넣는다. */
+function restKeys(c: TestCase): CategoryKey[] {
+  return ['info', 'changes', 'target', 'list', 'position', ...(c.memory === 'none' ? [] : (['memory'] as const))];
+}
 
 /** 케이스 표의 대표 사용자 요청 이름 */
 export function featureShort(c: TestCase): string {
   return c.features[0] ? shortOf('feature', c.features[0]) : '-';
 }
 
-/** 케이스 표의 '나머지 카테고리' 칸: 사용자 요청을 뺀 값을 짧은 이름으로 잇는다. 기억은 걸리는 케이스만 붙인다. */
+/** 케이스 표의 '나머지 카테고리' 칸: 사용자 요청을 뺀 값을 짧은 이름으로 잇는다. */
 export function restSummary(c: TestCase): string {
-  const keys: CategoryKey[] = ['info', 'changes', 'target', 'list', 'position', ...(c.memory === 'none' ? [] : (['memory'] as const))];
-  return keys.map((k) => shortOf(k, caseValues(c, k)[0]!)).join(' · ');
+  return restKeys(c).map((k) => shortOf(k, caseValues(c, k)[0]!)).join(' · ');
 }
 
-export interface CaseTag {
-  text: string;
+export interface CaseTagGroup {
+  /** 카테고리 이름. 꼬리표 위에 보인다. */
+  title: string;
   tone: 'neutral' | 'info';
+  values: string[];
 }
 
-/** 케이스 결과 머리의 꼬리표. 사용자 요청은 회색, 나머지 카테고리는 파랑이다. 앞선 대화는 실제 사용자 메시지 수로 보인다. */
-export function caseTags(c: TestCase): CaseTag[] {
+/**
+ * 케이스 결과 머리의 꼬리표를 카테고리별로 묶는다. 카테고리 이름이 위에 있으므로 값은 긴 이름을 쓴다.
+ * 사용자 요청은 회색, 나머지 카테고리는 파랑이다. 앞선 대화는 실제 사용자 메시지 수로 보인다.
+ */
+export function caseTagGroups(c: TestCase): CaseTagGroup[] {
   return [
-    ...c.features.map((f) => ({ text: valueOf('feature', f)?.label ?? f, tone: 'neutral' as const })),
-    ...[
-      shortOf('info', c.info),
-      shortOf('changes', c.changes),
-      shortOf('target', c.target),
-      shortOf('list', listValue(c)),
-      c.previousMessages ? `앞선 대화 ${c.previousMessages}번` : shortOf('position', positionValue(c)),
-      ...(c.memory === 'none' ? [] : [shortOf('memory', c.memory)]),
-    ].map((text) => ({ text, tone: 'info' as const })),
+    { title: categoryOf('feature').title, tone: 'neutral', values: c.features.map((f) => labelOf('feature', f)) },
+    ...restKeys(c).map((key) => ({
+      title: categoryOf(key).title,
+      tone: 'info' as const,
+      values: [key === 'position' && c.previousMessages ? `${c.previousMessages}번 주고받음` : labelOf(key, caseValues(c, key)[0]!)],
+    })),
   ];
 }
 

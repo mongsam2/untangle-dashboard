@@ -464,6 +464,25 @@
   color: var(--text-secondary);
 }
 
+.tagGroups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+
+.tagGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tagGroupTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;

@@ -4,7 +4,7 @@ import {
   bestIndex,
   bestPassRate,
   CATEGORIES,
-  caseTags,
+  caseTagGroups,
   casePassCounts,
   casePassRate,
   casesInRun,
@@ -111,23 +111,23 @@ describe('케이스 표시', () => {
     expect(restSummary(first)).toBe('말에 다 있음 · 1개 바꿈 · 새로 만듦 · 목록 0개 · 앞선 대화 없음');
   });
 
-  it('케이스 결과 꼬리표는 사용자 요청을 회색으로 먼저 두고 앞선 대화는 메시지 수로 보인다', () => {
-    expect(caseTags(base)).toEqual([
-      { text: '계획 고치기', tone: 'neutral' },
-      { text: '되물어야 함', tone: 'info' },
-      { text: '1개 바꿈', tone: 'info' },
-      { text: '있던 걸 고침', tone: 'info' },
-      { text: '목록 21개 이상', tone: 'info' },
-      { text: '앞선 대화 16번', tone: 'info' },
+  it('케이스 결과 꼬리표는 카테고리 이름 아래에 긴 이름으로 두고 앞선 대화는 메시지 수로 보인다', () => {
+    expect(caseTagGroups(base)).toEqual([
+      { title: '사용자 요청', tone: 'neutral', values: ['계획 고치기'] },
+      { title: '필요한 정보', tone: 'info', values: ['되물어야 함'] },
+      { title: '바꾸는 할 일·계획 수', tone: 'info', values: ['1개'] },
+      { title: '새로 만드나 고치나', tone: 'info', values: ['있던 걸 고침'] },
+      { title: '미리 넣어 둔 할 일·계획', tone: 'info', values: ['21개 이상'] },
+      { title: '앞선 대화', tone: 'info', values: ['16번 주고받음'] },
     ]);
-    expect(caseTags(first).at(-1)).toEqual({ text: '앞선 대화 없음', tone: 'info' });
+    expect(caseTagGroups(first).at(-1)).toEqual({ title: '앞선 대화', tone: 'info', values: ['없음'] });
   });
 
   it('기억 카테고리는 기억이 걸린 케이스에만 붙인다', () => {
     const remembers: TestCase = { ...first, memory: 'apply' };
     expect(restSummary(remembers)).toBe('말에 다 있음 · 1개 바꿈 · 새로 만듦 · 목록 0개 · 앞선 대화 없음 · 기억대로 답하기');
-    expect(caseTags(remembers).at(-1)).toEqual({ text: '기억대로 답하기', tone: 'info' });
-    expect(caseTags(first).some((t) => t.text.startsWith('기억'))).toBe(false);
+    expect(caseTagGroups(remembers).at(-1)).toEqual({ title: '기억 다루기', tone: 'info', values: ['기억대로 답하기'] });
+    expect(caseTagGroups(first).some((g) => g.title === '기억 다루기')).toBe(false);
   });
 
   it('케이스 결과의 준비 상태는 준비 묶음 이름과 크기를 함께 보인다', () => {
