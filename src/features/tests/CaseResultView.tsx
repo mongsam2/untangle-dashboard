@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useViewState } from '../../app/useViewState';
 import { Button } from '../../components/Button';
 import { ArrowRightIcon } from '../../components/icons';
@@ -24,6 +24,7 @@ import {
   type TestCase,
   type TestRun,
 } from './testModel';
+import { caseStart, itemDetail, type CaseFileItem } from './testSet';
 import s from './Tests.module.css';
 
 const LEVEL_TONE: Record<RateLevel, TagTone> = { good: 'success', mid: 'warning', bad: 'danger', empty: 'neutral' };
@@ -118,13 +119,9 @@ function CaseDetail({ run, c }: { run: TestRun; c: TestCase }) {
             </div>
           ))}
         </div>
-        <div className={s.setup}>
-          <Meta label="이전 대화" value={previousText(c)} />
-          <Meta label="존재하는 목록" value={listText(c)} />
-          <Meta label="시작 기억" value={memoryText(c)} />
-        </div>
         <Meta label="상황" value={c.expected} />
       </section>
+      <StartState c={c} />
       <div className={s.byConfig}>
         {run.configs.map((config, i) => (
           <section key={i} className={`card ${s.configCard}`}>
@@ -137,6 +134,90 @@ function CaseDetail({ run, c }: { run: TestRun; c: TestCase }) {
           </section>
         ))}
       </div>
+    </div>
+  );
+}
+
+// 시작 상태: 실행기가 테스트 계정에 깔아 둔 앞선 대화·할 일·계획·기억. 결과를 이 상태에 비춰 읽는다.
+function StartState({ c }: { c: TestCase }) {
+  const start = caseStart(c.id);
+  const chat = useRef<HTMLOListElement>(null);
+  // 케이스가 바꾼 턴은 대개 끝부분이라 마지막 턴부터 보인다.
+  useEffect(() => {
+    if (chat.current) chat.current.scrollTop = chat.current.scrollHeight;
+  }, []);
+  if (!start) return null;
+  const todos = start.items.filter((x) => x.kind === 'todo');
+  const plans = start.items.filter((x) => x.kind === 'plan');
+  const memory = [
+    ['대화 방식', start.memory.conversation],
+    ['정리 방식', start.memory.organizing],
+  ] as const;
+
+  return (
+    <section className={`card ${s.start}`} aria-label="시작 상태">
+      <div className={s.startBlock}>
+        <Meta label="앞선 대화" value={previousText(c)} />
+        {start.conversation.length > 0 && (
+          <ol ref={chat} className={s.startScroll}>
+            {start.conversation.map((t, i) => (
+              <li key={i} className={`${s.turn} ${t.changed ? s.turnChanged : ''}`}>
+                {t.changed && <span className={s.turnTag}>이 케이스만 바꾼 턴</span>}
+                <p className={`${s.bubble} ${s.bubbleUser}`}>{t.user}</p>
+                <p className={`${s.bubble} ${s.bubbleTangle}`}>{t.tangle}</p>
+                {t.note && <span className={s.turnNote}>{t.note}</span>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      <div className={s.startBlock}>
+        <Meta label="미리 넣어 둔 할 일·계획" value={listText(c)} />
+        {start.items.length > 0 && (
+          <div className={s.startScroll}>
+            <StartItems title="할 일" items={todos} />
+            <StartItems title="계획" items={plans} />
+          </div>
+        )}
+      </div>
+      <div className={s.startBlock}>
+        <Meta label="시작 기억" value={memoryText(c)} />
+        {memory.map(
+          ([title, lines]) =>
+            lines.length > 0 && (
+              <div key={title} className={s.startGroup}>
+                <span className={s.startGroupTitle}>{title}</span>
+                <ul className={s.startList}>
+                  {lines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            ),
+        )}
+      </div>
+    </section>
+  );
+}
+
+function StartItems({ title, items }: { title: string; items: CaseFileItem[] }) {
+  if (!items.length) return null;
+  return (
+    <div className={s.startGroup}>
+      <span className={s.startGroupTitle}>
+        {title} {items.length}개
+      </span>
+      <ul className={s.startList}>
+        {items.map((item) => {
+          const detail = itemDetail(item);
+          return (
+            <li key={item.title}>
+              {item.title}
+              {detail && <span className={s.startDetail}> · {detail}</span>}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
