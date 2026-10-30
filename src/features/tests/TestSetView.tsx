@@ -33,9 +33,9 @@ export function TestSetView({ set, lastRun, onOpenCase }: { set: TestSet; lastRu
   const levels = new Set(set.qualityExamples.map((q) => q.level));
   const best = lastRun ? bestPassRate(lastRun) : null;
   const tiles = [
-    { label: '케이스', value: String(cases.length), sub: `기능 ${features.size}종 · 카테고리 ${CATEGORIES.length}개` },
+    { label: '케이스', value: String(cases.length), sub: `사용자 요청 ${features.size}종 · 카테고리 ${CATEGORIES.length}개` },
     { label: '체크 항목', value: String(checks.length), sub: `코드 ${checks.filter((c) => c.judge === 'code').length} · 채점 ${checks.filter((c) => c.judge === 'grader').length}` },
-    { label: '품질 예시', value: String(set.qualityExamples.length), sub: set.qualityExamples.length ? `기능 ${exampleFeatures.size}종 × ${levels.size}단계` : '아직 없음' },
+    { label: '품질 예시', value: String(set.qualityExamples.length), sub: set.qualityExamples.length ? `사용자 요청 ${exampleFeatures.size}종 × ${levels.size}단계` : '아직 없음' },
     { label: '최근 실행 통과율', value: fmtRate(best), sub: lastRun ? `${runLabel(lastRun).replace(/ 실행$/, '')} · 설정 ${lastRun.configs.length}개 중 최고` : '–' },
   ];
 
@@ -126,8 +126,8 @@ function CaseTable({ set, lastRun, onOpenCase }: { set: TestSet; lastRun: TestRu
         <div className={`${s.table} ${s.caseTable}`}>
           <div className={`${s.row} ${s.headRow} ${s.caseCols}`}>
             <span>ID</span>
-            <span>마지막 요청</span>
-            <span>기능</span>
+            <span>마지막 메시지</span>
+            <span>사용자 요청</span>
             <span>나머지 카테고리</span>
             <span className={s.right}>체크</span>
             <span className={s.center}>최근 통과율</span>

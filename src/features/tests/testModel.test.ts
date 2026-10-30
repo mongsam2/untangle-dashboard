@@ -106,27 +106,27 @@ const run: TestRun = {
 };
 
 describe('케이스 표시', () => {
-  it('나머지 카테고리는 기능을 빼고 짧은 이름으로 잇는다', () => {
-    expect(restSummary(base)).toBe('항목 1개 · 기존 · 물어봐야 함 · 목록 21+ · 아주 김');
-    expect(restSummary(first)).toBe('항목 1개 · 새 · 메시지에 있음 · 목록 0 · 첫 턴');
+  it('나머지 카테고리는 사용자 요청을 빼고 짧은 이름으로 잇는다', () => {
+    expect(restSummary(base)).toBe('되물어야 함 · 1개 바꿈 · 있던 걸 고침 · 목록 21개 이상 · 대화 15번 이상');
+    expect(restSummary(first)).toBe('말에 다 있음 · 1개 바꿈 · 새로 만듦 · 목록 0개 · 앞선 대화 없음');
   });
 
-  it('케이스 결과 꼬리표는 기능을 회색으로 먼저 두고 대화 위치에 메시지 수를 붙인다', () => {
+  it('케이스 결과 꼬리표는 사용자 요청을 회색으로 먼저 두고 앞선 대화는 메시지 수로 보인다', () => {
     expect(caseTags(base)).toEqual([
-      { text: '계획 수정', tone: 'neutral' },
-      { text: '항목 1개', tone: 'info' },
-      { text: '기존 항목', tone: 'info' },
-      { text: '물어봐야 함', tone: 'info' },
-      { text: '목록 21+', tone: 'info' },
-      { text: '아주 김 (16)', tone: 'info' },
+      { text: '계획 고치기', tone: 'neutral' },
+      { text: '되물어야 함', tone: 'info' },
+      { text: '1개 바꿈', tone: 'info' },
+      { text: '있던 걸 고침', tone: 'info' },
+      { text: '목록 21개 이상', tone: 'info' },
+      { text: '앞선 대화 16번', tone: 'info' },
     ]);
-    expect(caseTags(first).at(-1)).toEqual({ text: '첫 턴', tone: 'info' });
+    expect(caseTags(first).at(-1)).toEqual({ text: '앞선 대화 없음', tone: 'info' });
   });
 
   it('기억 카테고리는 기억이 걸린 케이스에만 붙인다', () => {
     const remembers: TestCase = { ...first, memory: 'apply' };
-    expect(restSummary(remembers)).toBe('항목 1개 · 새 · 메시지에 있음 · 목록 0 · 첫 턴 · 기억 반영');
-    expect(caseTags(remembers).at(-1)).toEqual({ text: '기억 반영', tone: 'info' });
+    expect(restSummary(remembers)).toBe('말에 다 있음 · 1개 바꿈 · 새로 만듦 · 목록 0개 · 앞선 대화 없음 · 기억대로 답하기');
+    expect(caseTags(remembers).at(-1)).toEqual({ text: '기억대로 답하기', tone: 'info' });
     expect(caseTags(first).some((t) => t.text.startsWith('기억'))).toBe(false);
   });
 
@@ -142,7 +142,7 @@ describe('케이스 표시', () => {
   it('카테고리별 케이스 수는 빈 값도 남기고, 가장 많은 값을 막대 끝으로 둔다', () => {
     const groups = coverage([base, first]);
     const feature = groups.find((g) => g.key === 'feature')!;
-    expect(feature.title).toBe('기능 (여러 개 선택)');
+    expect(feature.title).toBe('사용자 요청 (여러 개 선택)');
     expect(feature.rows.find((r) => r.id === 'move')).toMatchObject({ count: 1, ratio: 0.5 });
     expect(feature.rows.find((r) => r.id === 'query')).toMatchObject({ count: 0, ratio: 0 });
     expect(groups.find((g) => g.key === 'changes')!.rows.find((r) => r.id === 'one')).toMatchObject({ count: 2, ratio: 1 });
@@ -181,8 +181,8 @@ describe('실행 결과', () => {
     const groups = categoryRates(run, [base, first]);
     const info = groups.find((g) => g.key === 'info')!;
     expect(info.rows).toEqual([
-      { id: 'in_message', label: '메시지에 있음', count: 1, rates: [1, 1] },
-      { id: 'ask', label: '물어봐야 함', count: 1, rates: [0, 0.5] },
+      { id: 'in_message', label: '말에 다 있음', count: 1, rates: [1, 1] },
+      { id: 'ask', label: '되물어야 함', count: 1, rates: [0, 0.5] },
     ]);
   });
 
