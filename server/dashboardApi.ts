@@ -1,9 +1,10 @@
 // 대시보드의 서버 쪽 API. 로컬 개발 서버(vite.config.ts)와 Vercel 함수(api/*.ts)가 같은 코드를 쓴다.
 //
-//   GET /api/access                               접근 키를 확인하고 연결된 서버 목록을 준다
-//   GET /api/dashboard?server=<id>&route=<경로>&…  고른 서버의 탱글 대시보드 조회를 중계한다
+//   GET  /api/access                               접근 키를 확인하고 연결된 서버 목록을 준다
+//   GET  /api/dashboard?server=<id>&route=<경로>&…  고른 서버의 탱글 대시보드 조회를 중계한다
+//   POST /api/dashboard?server=<id>&route=<경로>    테스트 실행 시작·중단을 본문 그대로 중계한다. 운영 서버로는 보내지 않는다
 //
-// 두 경로 모두 요청 헤더 X-Dashboard-Key가 DASHBOARD_ACCESS_KEY와 같아야 한다. 운영자 키·탱글 토큰은
+// 모든 경로는 요청 헤더 X-Dashboard-Key가 DASHBOARD_ACCESS_KEY와 같아야 한다. 운영자 키·탱글 토큰은
 // 이 파일이 서버 쪽에서만 붙이고 브라우저로는 보내지 않는다.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -91,7 +92,11 @@ export function apiConfig(env: Env): ApiConfig {
 }
 
 /** 대시보드가 부르는 조회 경로만 넘긴다. 상위 경로(..)나 다른 운영자 API로 새지 않게 모양을 고정한다. */
-const ROUTE = /^(runs|sessions|stats|(runs|sessions|cases)\/[A-Za-z0-9_-]{1,128})$/;
+const ROUTE = /^(runs|sessions|stats|test-runs|(runs|sessions|cases|test-runs)\/[A-Za-z0-9_-]{1,128})$/;
+/** 본문을 보내는 경로는 테스트 실행 시작과 중단뿐이다. */
+const WRITE_ROUTE = /^test-runs(\/[0-9a-fA-F-]{36}\/stop)?$/;
+/** 테스트 실행은 실제 모델을 부르고 테스트 계정을 만든다. 운영 서버에서는 돌리지 않는다. */
+const WRITE_SERVERS: readonly ServerId[] = ['dev', 'local'];
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -118,7 +123,8 @@ export async function handleApi(request: Request, config: ApiConfig, fetchImpl: 
   if (url.pathname !== '/api/access' && url.pathname !== '/api/dashboard') {
     return failure(404, 'not_found', '없는 경로예요.');
   }
-  if (request.method !== 'GET') return failure(405, 'method_not_allowed', '조회만 할 수 있어요.');
+  const write = request.method === 'POST' && url.pathname === '/api/dashboard';
+  if (request.method !== 'GET' && !write) return failure(405, 'method_not_allowed', '조회와 테스트 실행만 할 수 있어요.');
   if (!config.accessKey) {
     return failure(503, 'access_not_configured', '대시보드 접근 키(DASHBOARD_ACCESS_KEY)가 서버에 설정되지 않았어요.');
   }
@@ -136,13 +142,19 @@ export async function handleApi(request: Request, config: ApiConfig, fetchImpl: 
   params.delete('route');
   const target = config.targets.find((t) => t.id === server);
   if (!target) return failure(404, 'unknown_server', '연결되지 않은 서버예요.');
-  if (!ROUTE.test(route)) return failure(404, 'not_found', '없는 조회 경로예요.');
+  if (!(write ? WRITE_ROUTE : ROUTE).test(route)) return failure(404, 'not_found', '없는 조회 경로예요.');
+  if (write && !WRITE_SERVERS.includes(target.id)) {
+    return failure(403, 'test_run_forbidden', '운영 서버에서는 테스트를 실행하지 않아요.');
+  }
 
   const upstream = new URL(`${target.path}/${route}`, target.url);
   upstream.search = params.toString();
+  const init: RequestInit = write
+    ? { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...target.headers }, body: await request.arrayBuffer() }
+    : { headers: { Accept: 'application/json', ...target.headers } };
   let res: Response;
   try {
-    res = await fetchImpl(upstream, { headers: { Accept: 'application/json', ...target.headers } });
+    res = await fetchImpl(upstream, init);
   } catch {
     return failure(502, 'upstream_unreachable', '서버에 연결하지 못했어요.');
   }
@@ -164,6 +176,17 @@ function toHeaders(req: IncomingMessage): Headers {
   return headers;
 }
 
+async function readBody(req: IncomingMessage): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks);
+}
+
+async function toRequest(req: IncomingMessage, url: string): Promise<Request> {
+  const body = req.method === 'POST' ? await readBody(req) : undefined;
+  return new Request(new URL(url, 'http://localhost'), { method: req.method, headers: toHeaders(req), body });
+}
+
 /** 로컬 개발 서버·미리보기 서버에 끼우는 미들웨어. /api/ 아래 요청만 받고 나머지는 그대로 넘긴다. */
 export function nodeMiddleware(config: ApiConfig) {
   return (req: IncomingMessage, res: ServerResponse, next: () => void): void => {
@@ -171,8 +194,8 @@ export function nodeMiddleware(config: ApiConfig) {
       next();
       return;
     }
-    const request = new Request(new URL(req.url, 'http://localhost'), { method: req.method, headers: toHeaders(req) });
-    handleApi(request, config)
+    toRequest(req, req.url)
+      .then((request) => handleApi(request, config))
       .then(async (response) => {
         res.statusCode = response.status;
         response.headers.forEach((value, name) => res.setHeader(name, value));

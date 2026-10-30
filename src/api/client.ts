@@ -1,4 +1,5 @@
 // 조회 API 클라이언트. VITE_API_MODE=mock(기본)이면 내장 예시 데이터, live면 고른 서버의 조회를 /api/dashboard로 부른다.
+// 테스트 실행의 시작·중단만 같은 주소로 본문을 보낸다(POST).
 // /api/*는 로컬에서는 개발 서버 미들웨어, 배포에서는 Vercel 함수가 받는다(server/dashboardApi.ts).
 import { ApiError } from './errors';
 import { createMockHandlers } from './mock/handlers';
@@ -13,6 +14,9 @@ import type {
   SessionListResponse,
   SessionPage,
   StatsResponse,
+  TestRunCreateRequest,
+  TestRunDetailResponse,
+  TestRunListResponse,
 } from './types';
 
 export interface DashboardApi {
@@ -82,8 +86,10 @@ async function errorOf(res: Response): Promise<ApiError> {
   return new ApiError(res.status, code, message);
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { Accept: 'application/json', [ACCESS_HEADER]: accessKey ?? '' } });
+async function requestJson<T>(url: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json', [ACCESS_HEADER]: accessKey ?? '' };
+  const init: RequestInit = body === undefined ? { headers } : { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  const res = await fetch(url, init);
   if (!res.ok) {
     const error = await errorOf(res);
     if (error.code === 'access_denied') accessDenied?.();
@@ -91,6 +97,8 @@ async function getJson<T>(url: string): Promise<T> {
   }
   return (await res.json()) as T;
 }
+
+const getJson = <T>(url: string) => requestJson<T>(url);
 
 export type AccessResult = { ok: true; servers: ServerId[] } | { ok: false; message: string };
 
@@ -116,6 +124,23 @@ function liveApi(server: ServerId): DashboardApi {
     getSession: (id) => getJson(dashboardUrl(server, `sessions/${id}`)),
     getCase: (id) => getJson(dashboardUrl(server, `cases/${id}`)),
     getStats: (f) => getJson(dashboardUrl(server, 'stats', toQuery(f))),
+  };
+}
+
+/** 테스트 실행 API. live 모드에서만 쓴다. mock 모드의 테스트 탭은 예시 실행(src/features/tests/sampleData.ts)을 본다. */
+export interface TestRunApi {
+  listTestRuns(): Promise<TestRunListResponse>;
+  getTestRun(runId: string): Promise<TestRunDetailResponse>;
+  startTestRun(body: TestRunCreateRequest): Promise<TestRunDetailResponse>;
+  stopTestRun(runId: string): Promise<TestRunDetailResponse>;
+}
+
+export function testRunApi(server: ServerId): TestRunApi {
+  return {
+    listTestRuns: () => getJson(dashboardUrl(server, 'test-runs')),
+    getTestRun: (id) => getJson(dashboardUrl(server, `test-runs/${id}`)),
+    startTestRun: (body) => requestJson(dashboardUrl(server, 'test-runs'), body),
+    stopTestRun: (id) => requestJson(dashboardUrl(server, `test-runs/${id}/stop`), {}),
   };
 }
 

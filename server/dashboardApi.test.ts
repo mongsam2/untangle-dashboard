@@ -12,9 +12,11 @@ const ENV = {
   PROD_ADMIN_KEY: 'prod-admin',
 };
 
-function request(path: string, key: string | null = ACCESS, method = 'GET'): Request {
-  return new Request('https://dash.example.com' + path, { method, headers: key === null ? {} : { 'X-Dashboard-Key': key } });
+function request(path: string, key: string | null = ACCESS, method = 'GET', body?: string): Request {
+  return new Request('https://dash.example.com' + path, { method, headers: key === null ? {} : { 'X-Dashboard-Key': key }, body });
 }
+
+const RUN_ID = '0b5c1d3e-8f2a-4c1b-9d7e-6a5b4c3d2e1f';
 
 function upstream(status = 200, body: unknown = { items: [] }) {
   return vi.fn<typeof fetch>(async () => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
@@ -93,6 +95,48 @@ describe('handleApi', () => {
     expect(init?.headers).toMatchObject({ 'X-Admin-Key': 'prod-admin' });
   });
 
+  it('테스트 실행 목록과 실행 하나를 조회한다', async () => {
+    const fetchImpl = upstream();
+    for (const route of ['test-runs', `test-runs/${RUN_ID}`]) {
+      expect((await handleApi(request(`/api/dashboard?server=dev&route=${route}`), config, fetchImpl)).status).toBe(200);
+    }
+    expect(fetchImpl.mock.calls.map(([url]) => String(url))).toEqual([
+      'https://dev.example.com/api/v1/admin/tangle/dashboard/test-runs',
+      `https://dev.example.com/api/v1/admin/tangle/dashboard/test-runs/${RUN_ID}`,
+    ]);
+  });
+
+  it('테스트 실행 시작·중단은 본문을 그대로 POST로 중계한다', async () => {
+    const fetchImpl = upstream(200, { id: RUN_ID });
+    const body = JSON.stringify({ case_ids: ['C001'], repeats: 1 });
+    const res = await handleApi(request('/api/dashboard?server=dev&route=test-runs', ACCESS, 'POST', body), config, fetchImpl);
+    expect(res.status).toBe(200);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(String(url)).toBe('https://dev.example.com/api/v1/admin/tangle/dashboard/test-runs');
+    expect(init?.method).toBe('POST');
+    expect(init?.headers).toMatchObject({ 'Content-Type': 'application/json', 'X-Admin-Key': 'dev-admin' });
+    expect(new TextDecoder().decode(init?.body as ArrayBuffer)).toBe(body);
+
+    const local = apiConfig({ DASHBOARD_ACCESS_KEY: ACCESS, TANGLE_DASHBOARD_TOKEN: 'tangle-token' });
+    await handleApi(request(`/api/dashboard?server=local&route=test-runs/${RUN_ID}/stop`, ACCESS, 'POST', '{}'), local, fetchImpl);
+    expect(String(fetchImpl.mock.calls[1]![0])).toBe(`http://127.0.0.1:8010/v2/dashboard/test-runs/${RUN_ID}/stop`);
+  });
+
+  it('운영 서버로는 테스트 실행을 보내지 않고, 시작·중단 밖의 POST는 넘기지 않는다', async () => {
+    const fetchImpl = upstream();
+    const prod = await handleApi(request('/api/dashboard?server=prod&route=test-runs', ACCESS, 'POST', '{}'), config, fetchImpl);
+    expect(prod.status).toBe(403);
+    expect(await errorCode(prod)).toBe('test_run_forbidden');
+    for (const route of ['runs', 'stats', `test-runs/${RUN_ID}`, 'test-runs/1/stop', `test-runs/${RUN_ID}/stop/x`]) {
+      const res = await handleApi(request(`/api/dashboard?server=dev&route=${route}`, ACCESS, 'POST', '{}'), config, fetchImpl);
+      expect(res.status, route).toBe(404);
+    }
+    expect((await handleApi(request(`/api/dashboard?server=dev&route=test-runs/${RUN_ID}/stop`), config, fetchImpl)).status).toBe(404);
+    const denied = await handleApi(request('/api/dashboard?server=dev&route=test-runs', 'wrong-key', 'POST', '{}'), config, fetchImpl);
+    expect(denied.status).toBe(401);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('서버의 오류 상태와 본문은 그대로 돌려준다', async () => {
     const body = { error: { code: 'not_found', message: '없는 실행이에요.', retryable: false } };
     const res = await handleApi(request('/api/dashboard?server=dev&route=runs/0f0f0f0f-0000-4000-8000-000000000001'), config, upstream(404, body));
@@ -118,8 +162,9 @@ describe('handleApi', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('조회가 아니면 405, 서버에 닿지 못하면 502다', async () => {
+  it('조회·테스트 실행이 아니면 405, 서버에 닿지 못하면 502다', async () => {
     expect((await handleApi(request('/api/access', ACCESS, 'POST'), config)).status).toBe(405);
+    expect((await handleApi(request('/api/dashboard?server=dev&route=test-runs', ACCESS, 'PUT'), config)).status).toBe(405);
     const down = vi.fn<typeof fetch>(async () => {
       throw new TypeError('fetch failed');
     });

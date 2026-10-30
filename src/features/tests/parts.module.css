@@ -190,6 +190,11 @@
   color: var(--text-danger);
 }
 
+.markNone {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
 .checkText {
   flex: 1 1 0;
   min-width: 0;

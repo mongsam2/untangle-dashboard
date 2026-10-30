@@ -368,3 +368,79 @@ export interface StatsResponse {
   guardrails: GuardrailStat[];
   cases: CaseStat[];
 }
+
+// ── 테스트 실행 ─────────────────────────────────────────────────────────
+
+export type TestRunStatus = 'running' | 'done' | 'stopped';
+
+/** 체크 항목을 판정한 쪽. 코드 판정으로 적은 항목도 정해진 표기가 아니면 채점 모델이 판정한다. */
+export type CheckJudge = 'code' | 'grader';
+
+export interface TestRunConfig {
+  model: string;
+  effort: string;
+}
+
+/** 체크 항목 하나의 판정. 판정하지 않았으면 passed·judged_by가 null이다. */
+export interface TestCheckResult {
+  passed: boolean | null;
+  judged_by: CheckJudge | null;
+  reason: string | null;
+}
+
+export interface TestAttemptItem {
+  case_id: string;
+  /** 실행 configs의 순서(0 = A) */
+  config: number;
+  /** 1부터 */
+  repeat: number;
+  finished_at: string;
+  passed: boolean;
+  /** 통과한 시도만 품질을 매긴다. */
+  quality: 1 | 2 | 3 | null;
+  latency_ms: number;
+  model_calls: number;
+  tool_calls: number;
+  /** 단가가 없는 모델이면 null */
+  cost_usd: number | null;
+  checks: TestCheckResult[];
+  reason: string;
+  reply: string;
+  turn_id: string | null;
+  /** 실제로 응답한 채점 모델. 채점하지 않았으면 null */
+  grader_model: string | null;
+  grader_cost_usd: number | null;
+}
+
+export interface TestRunSummary {
+  id: string;
+  status: TestRunStatus;
+  started_at: string;
+  /** 진행 중이면 지금 시각, 끝났으면 finished_at */
+  updated_at: string;
+  finished_at: string | null;
+  configs: TestRunConfig[];
+  repeats: number;
+  case_ids: string[];
+  grader: TestRunConfig;
+  done: number;
+  total: number;
+}
+
+export interface TestRunDetailResponse extends TestRunSummary {
+  /** 끝난 순서대로 */
+  attempts: TestAttemptItem[];
+}
+
+export interface TestRunListResponse {
+  /** 최근 시작한 실행부터 */
+  items: TestRunSummary[];
+}
+
+/** 실행 시작 요청. case_file은 케이스 파일(testSet.json)을 그대로 보낸다. */
+export interface TestRunCreateRequest {
+  case_file: unknown;
+  case_ids: string[];
+  configs: TestRunConfig[];
+  repeats: number;
+}

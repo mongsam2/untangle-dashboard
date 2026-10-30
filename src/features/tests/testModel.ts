@@ -1,5 +1,6 @@
 // 테스트 탭의 데이터 모양과 화면 수치 계산. 케이스 파일과 실행 기록을 받아 표·카드에 쓰는 값으로 바꾼다.
 // 실행 기록은 끝난 시도만 담는다. 통과율·평균은 모두 끝난 시도 기준이다.
+import type { TestAttemptItem, TestRunDetailResponse, TestRunSummary } from '../../api/types';
 
 export type Judge = 'code' | 'grader';
 
@@ -222,10 +223,47 @@ export function coverage(cases: TestCase[]): CoverageGroup[] {
 
 export type Effort = 'low' | 'medium' | 'high';
 
-/** 비교 설정 하나: 모델과 추론 강도 */
+export const EFFORTS: Effort[] = ['low', 'medium', 'high'];
+
+/** 비교 설정 하나: 모델 ID와 추론 강도 */
 export interface TestConfig {
   model: string;
   effort: Effort;
+}
+
+/** 새 실행 팝업에서 고르는 탱글 모델 */
+export const MODELS = ['gpt-6-luna', 'gpt-6-sol'];
+
+/** 새 실행 팝업에 처음 보이는 설정 */
+export const CONFIG_OPTIONS: TestConfig[] = [
+  { model: 'gpt-6-luna', effort: 'low' },
+  { model: 'gpt-6-luna', effort: 'medium' },
+  { model: 'gpt-6-sol', effort: 'low' },
+  { model: 'gpt-6-luna', effort: 'high' },
+];
+
+const MODEL_LABELS: Record<string, string> = {
+  'gpt-6-luna': 'GPT-6 Luna',
+  'gpt-6-sol': 'GPT-6 Sol',
+  'claude-opus-5-5': 'Claude Opus 5.5',
+};
+
+/** 모델 ID의 화면 이름. 모르는 모델은 ID 그대로다. */
+export function modelLabel(id: string): string {
+  return MODEL_LABELS[id] ?? id;
+}
+
+/** 채점 모델과 추론 강도. 탱글 서버 설정이 정하고 실행마다 기록한다. */
+export interface Grader {
+  model: string;
+  effort: string;
+}
+
+/** 탱글 서버의 기본 채점 설정. 아직 실행이 없을 때 새 실행 팝업에 보인다. */
+export const DEFAULT_GRADER: Grader = { model: 'claude-opus-5-5', effort: 'medium' };
+
+export function graderLabel(g: Grader): string {
+  return `${modelLabel(g.model)} · 추론 ${g.effort}`;
 }
 
 /** 한 실행에서 비교하는 설정은 최대 2개다(A·B). */
@@ -237,9 +275,17 @@ export function sameConfig(a: TestConfig, b: TestConfig): boolean {
   return a.model === b.model && a.effort === b.effort;
 }
 
-/** 칩에 쓰는 짧은 이름. 'GPT-6 Luna' + low → 'Luna · low' */
+/** 칩에 쓰는 짧은 이름. 'gpt-6-luna' + low → 'Luna · low' */
 export function configShort(c: TestConfig): string {
-  return `${c.model.split(' ').at(-1)} · ${c.effort}`;
+  return `${modelLabel(c.model).split(' ').at(-1)} · ${c.effort}`;
+}
+
+/** 체크 항목 하나의 판정. 판정하지 않았으면(앞선 코드 판정 실패·채점 실패·실행 실패) passed가 null이다. */
+export interface CheckResult {
+  passed: boolean | null;
+  /** 실제로 판정한 쪽. 코드 판정으로 적은 항목도 정해진 표기가 아니면 채점 모델이 판정한다. */
+  judgedBy: Judge | null;
+  reason: string | null;
 }
 
 export interface Attempt {
@@ -253,9 +299,12 @@ export interface Attempt {
   /** 품질 점수. 실패한 시도는 채점하지 않는다. */
   quality: 1 | 2 | 3 | null;
   latencyMs: number;
-  costUsd: number;
-  /** 케이스 체크 항목 순서대로 통과 여부 */
-  checks: boolean[];
+  /** 탱글 비용. 단가를 모르는 모델이면 null */
+  costUsd: number | null;
+  /** 채점 비용. 채점하지 않았으면 null */
+  graderCostUsd: number | null;
+  /** 케이스 체크 항목 순서대로 */
+  checks: CheckResult[];
   reason: string;
   reply: string;
   /** 탱글 실행 기록의 turn_id. 있으면 요청 상세를 연다. */
@@ -275,8 +324,42 @@ export interface TestRun {
   configs: TestConfig[];
   repeats: number;
   caseIds: string[];
+  grader: Grader;
   /** 끝난 시도. 끝난 순서대로다. */
   attempts: Attempt[];
+}
+
+function fromServerAttempt(a: TestAttemptItem): Attempt {
+  return {
+    caseId: a.case_id,
+    config: a.config,
+    repeat: a.repeat,
+    finishedAt: a.finished_at,
+    passed: a.passed,
+    quality: a.quality,
+    latencyMs: a.latency_ms,
+    costUsd: a.cost_usd,
+    graderCostUsd: a.grader_cost_usd,
+    checks: a.checks.map((c) => ({ passed: c.passed, judgedBy: c.judged_by, reason: c.reason })),
+    reason: a.reason,
+    reply: a.reply,
+    turnId: a.turn_id,
+  };
+}
+
+/** 탱글 서버의 테스트 실행 응답을 화면 모양으로 바꾼다. 목록 응답에는 시도가 없다. */
+export function fromServerRun(r: TestRunSummary | TestRunDetailResponse): TestRun {
+  return {
+    id: r.id,
+    startedAt: r.started_at,
+    updatedAt: r.updated_at,
+    status: r.status,
+    configs: r.configs.map((c) => ({ model: c.model, effort: c.effort as Effort })),
+    repeats: r.repeats,
+    caseIds: r.case_ids,
+    grader: r.grader,
+    attempts: 'attempts' in r ? r.attempts.map(fromServerAttempt) : [],
+  };
 }
 
 const KST_OFFSET_MS = 9 * 3600000;
@@ -299,6 +382,9 @@ export function latestDoneRun(runs: TestRun[]): TestRun | null {
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+const known = (xs: (number | null)[]) => xs.filter((x): x is number => x !== null);
+/** 아는 값만 더한다. 아는 값이 없으면 null */
+const knownSum = (xs: (number | null)[]) => (known(xs).length ? sum(known(xs)) : null);
 
 function passRate(attempts: Attempt[]): number | null {
   return attempts.length ? attempts.filter((a) => a.passed).length / attempts.length : null;
@@ -316,7 +402,7 @@ export interface ConfigProgress {
   total: number;
   passRate: number | null;
   avgLatencyMs: number | null;
-  costUsd: number;
+  costUsd: number | null;
 }
 
 export function configProgress(run: TestRun): ConfigProgress[] {
@@ -327,7 +413,7 @@ export function configProgress(run: TestRun): ConfigProgress[] {
       total: run.caseIds.length * run.repeats,
       passRate: passRate(mine),
       avgLatencyMs: mean(mine.map((a) => a.latencyMs)),
-      costUsd: sum(mine.map((a) => a.costUsd)),
+      costUsd: knownSum(mine.map((a) => a.costUsd)),
     };
   });
 }
@@ -339,7 +425,8 @@ export interface RunProgress {
   elapsedMs: number;
   /** 지금까지의 속도로 어림한 남은 시간. 끝난 시도가 없으면 null */
   remainingMs: number | null;
-  costUsd: number;
+  costUsd: number | null;
+  graderCostUsd: number | null;
 }
 
 export function runProgress(run: TestRun): RunProgress {
@@ -352,7 +439,8 @@ export function runProgress(run: TestRun): RunProgress {
     ratio: total ? done / total : 0,
     elapsedMs,
     remainingMs: done ? (elapsedMs / done) * (total - done) : null,
-    costUsd: sum(run.attempts.map((a) => a.costUsd)),
+    costUsd: knownSum(run.attempts.map((a) => a.costUsd)),
+    graderCostUsd: knownSum(run.attempts.map((a) => a.graderCostUsd)),
   };
 }
 
@@ -362,7 +450,7 @@ export interface ConfigSummary {
   avgLatencyMs: number | null;
   p90LatencyMs: number | null;
   costPerAttempt: number | null;
-  costUsd: number;
+  costUsd: number | null;
 }
 
 export type SummaryColumn = keyof ConfigSummary;
@@ -387,8 +475,8 @@ export function configSummaries(run: TestRun): ConfigSummary[] {
       quality: mean(mine.flatMap((a) => (a.quality === null ? [] : [a.quality]))),
       avgLatencyMs: mean(latencies),
       p90LatencyMs: p90(latencies),
-      costPerAttempt: mean(costs),
-      costUsd: sum(costs),
+      costPerAttempt: mean(known(costs)),
+      costUsd: knownSum(costs),
     };
   });
 }
@@ -434,22 +522,23 @@ export function categoryRates(run: TestRun, cases: TestCase[]): CategoryRateGrou
 
 export interface FailedCheck {
   text: string;
+  /** 처음 틀린 시도를 판정한 쪽 */
   judge: Judge;
   /** 설정별 틀린 시도 수 */
   counts: number[];
 }
 
-/** 자주 틀린 체크 항목. 같은 문장의 체크는 케이스가 달라도 하나로 센다. */
+/** 자주 틀린 체크 항목. 같은 문장의 체크는 케이스가 달라도 하나로 센다. 판정하지 않은 항목은 세지 않는다. */
 export function frequentFailures(run: TestRun, cases: TestCase[], limit = 5): FailedCheck[] {
   const byId = new Map(cases.map((c) => [c.id, c]));
   const rows = new Map<string, FailedCheck>();
   for (const a of run.attempts) {
     const c = byId.get(a.caseId);
     if (!c) continue;
-    a.checks.forEach((ok, i) => {
+    a.checks.forEach((result, i) => {
       const check = c.checks[i];
-      if (ok || !check) return;
-      const row = rows.get(check.text) ?? { text: check.text, judge: check.judge, counts: run.configs.map(() => 0) };
+      if (result.passed !== false || !check) return;
+      const row = rows.get(check.text) ?? { text: check.text, judge: result.judgedBy ?? check.judge, counts: run.configs.map(() => 0) };
       row.counts[a.config] = (row.counts[a.config] ?? 0) + 1;
       rows.set(check.text, row);
     });
@@ -555,8 +644,9 @@ export interface AttemptCost {
 
 export interface Estimate {
   calls: number;
-  costUsd: number;
-  durationMs: number;
+  /** 어림할 근거가 없으면 null */
+  costUsd: number | null;
+  durationMs: number | null;
 }
 
 /**
@@ -570,5 +660,27 @@ export function estimate(perConfig: AttemptCost[], judge: AttemptCost, caseCount
     calls,
     costUsd: sum(perConfig.map((c) => each * (c.costUsd + judge.costUsd))),
     durationMs: sum(perConfig.map((c) => each * (c.latencyMs + judge.latencyMs))) / Math.max(1, parallel),
+  };
+}
+
+/**
+ * 지난 실행의 실제 기록으로 새 실행을 어림한다. 비용은 같은 설정의 시도당 탱글·채점 비용 평균이고,
+ * 고른 설정 중 하나라도 지난 실행에 없거나 비용 기록이 없으면 null이다.
+ * 시간은 지난 실행이 시도 하나를 끝내는 데 걸린 평균 간격(동시 실행 포함)에 시도 수를 곱한다.
+ */
+export function estimateFromRun(reference: TestRun | null, configs: TestConfig[], caseCount: number, repeats: number): Estimate {
+  const each = caseCount * repeats;
+  const calls = each * configs.length;
+  if (!reference?.attempts.length) return { calls, costUsd: null, durationMs: null };
+  const perConfig = configs.map((config) => {
+    const index = reference.configs.findIndex((c) => sameConfig(c, config));
+    const mine = reference.attempts.filter((a) => a.config === index);
+    return mean(known(mine.map((a) => (a.costUsd === null ? null : a.costUsd + (a.graderCostUsd ?? 0)))));
+  });
+  const elapsedMs = Math.max(0, Date.parse(reference.updatedAt) - Date.parse(reference.startedAt));
+  return {
+    calls,
+    costUsd: perConfig.every((x) => x !== null) ? sum(perConfig.map((x) => each * x!)) : null,
+    durationMs: (elapsedMs / reference.attempts.length) * calls,
   };
 }
