@@ -15,7 +15,9 @@ import {
   rateLevel,
   restSummary,
   runLabel,
+  sortCases,
   valueOf,
+  type CaseSort,
   type TestRun,
   type TestSet,
 } from './testModel';
@@ -84,12 +86,15 @@ function CaseTable({ set, lastRun, onOpenCase }: { set: TestSet; lastRun: TestRu
   const [open, setOpen] = useState(false);
   const [info, setInfo] = useState('all');
   const [feature, setFeature] = useState('all');
+  const [sort, setSort] = useState<CaseSort>('id');
   const [shown, setShown] = useState(PAGE);
-  const rows = [...set.cases]
-    .filter((c) => (info === 'all' || c.info === info) && (feature === 'all' || c.features.includes(feature)))
-    .sort((a, b) => a.id.localeCompare(b.id));
+  const rows = sortCases(
+    set.cases.filter((c) => (info === 'all' || c.info === info) && (feature === 'all' || c.features.includes(feature))),
+    lastRun,
+    sort,
+  );
   const active = (info === 'all' ? 0 : 1) + (feature === 'all' ? 0 : 1);
-  const pick = (setter: (v: string) => void) => (v: string) => {
+  const pick = <T,>(setter: (v: T) => void) => (v: T) => {
     setter(v);
     setShown(PAGE);
   };
@@ -103,6 +108,19 @@ function CaseTable({ set, lastRun, onOpenCase }: { set: TestSet; lastRun: TestRu
         </Button>
         <Tag tone="info">{categoryOf('info').title}: {info === 'all' ? '전체' : valueOf('info', info)?.label}</Tag>
         <Tag tone="info">{categoryOf('feature').title}: {feature === 'all' ? '전체' : valueOf('feature', feature)?.label}</Tag>
+        {lastRun && (
+          <span className={s.sort}>
+            <Segmented<CaseSort>
+              label="정렬"
+              value={sort}
+              onChange={pick(setSort)}
+              options={[
+                { value: 'id', label: 'ID 순' },
+                { value: 'rate', label: '최근 통과율 낮은 순' },
+              ]}
+            />
+          </span>
+        )}
       </div>
       {open && (
         <div className={s.filterPanel}>

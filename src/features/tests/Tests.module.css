@@ -195,6 +195,10 @@
   gap: 8px;
 }
 
+.sort {
+  margin-left: auto;
+}
+
 .filterPanel {
   display: flex;
   flex-direction: column;

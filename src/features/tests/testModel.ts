@@ -578,6 +578,16 @@ export function casePassRate(run: TestRun | null, caseId: string): number | null
   return run ? passRate(run.attempts.filter((a) => a.caseId === caseId)) : null;
 }
 
+export type CaseSort = 'id' | 'rate';
+
+/** 케이스 표 순서. 통과율 순이면 낮은 것부터 두고, 그 실행에 없던 케이스는 맨 뒤, 같으면 ID 순이다. */
+export function sortCases(cases: TestCase[], run: TestRun | null, by: CaseSort): TestCase[] {
+  const byId = (a: TestCase, b: TestCase) => a.id.localeCompare(b.id);
+  if (by === 'id') return [...cases].sort(byId);
+  const rates = new Map(cases.map((c) => [c.id, casePassRate(run, c.id) ?? Infinity]));
+  return [...cases].sort((a, b) => rates.get(a.id)! - rates.get(b.id)! || byId(a, b));
+}
+
 /** 설정 중 가장 높은 통과율. 테스트 셋의 '최근 실행 통과율'이다. */
 export function bestPassRate(run: TestRun): number | null {
   const rates = configSummaries(run).flatMap((s) => (s.passRate === null ? [] : [s.passRate]));

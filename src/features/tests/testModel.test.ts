@@ -29,6 +29,7 @@ import {
   restSummary,
   runLabel,
   runProgress,
+  sortCases,
   toCaseFilter,
   valueOf,
   type Attempt,
@@ -206,6 +207,15 @@ describe('실행 결과', () => {
     expect(casePassRate(null, 'C031')).toBeNull();
     expect(bestPassRate(run)).toBe(0.75);
     expect(failedCaseIds(run)).toEqual(['C031']);
+  });
+
+  it('케이스 표는 ID 순이거나 최근 통과율 낮은 순이다. 실행에 없던 케이스는 맨 뒤, 같으면 ID 순', () => {
+    const ids = (cases: TestCase[]) => cases.map((c) => c.id);
+    const cases = [{ ...base, id: 'C050' }, base, first, { ...base, id: 'C002' }];
+    const tied: TestRun = { ...run, attempts: [...run.attempts, attempt('C002', 0, 1, false), attempt('C002', 1, 1, true), attempt('C002', 0, 2, false), attempt('C002', 1, 2, false)] };
+    expect(ids(sortCases(cases, tied, 'id'))).toEqual(['C001', 'C002', 'C031', 'C050']);
+    expect(ids(sortCases(cases, tied, 'rate'))).toEqual(['C002', 'C031', 'C001', 'C050']);
+    expect(ids(sortCases(cases, null, 'rate'))).toEqual(['C001', 'C002', 'C031', 'C050']);
   });
 
   it('진행은 끝난 시도 수와 지금까지의 속도로 남은 시간을 어림한다', () => {
