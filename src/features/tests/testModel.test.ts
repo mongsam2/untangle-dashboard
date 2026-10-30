@@ -37,7 +37,7 @@ import {
   type TestCase,
   type TestRun,
 } from './testModel';
-import { CASE_FILE, TEST_SET } from './testSet';
+import { CASE_FILE, TEST_SET, caseStart, itemDetail, tangleLine } from './testSet';
 
 const base: TestCase = {
   id: 'C031',
@@ -391,5 +391,34 @@ describe('케이스 파일', () => {
       expect(x.graderCostUsd).not.toBeNull();
       expect(x.checks.every((k) => (k.passed === false) === (k.reason !== null))).toBe(true);
     }
+  });
+});
+
+describe('케이스 시작 상태', () => {
+  it('앞선 대화는 공통 대본 앞부분에 케이스가 바꾼 턴을 덮어쓴다', () => {
+    const start = caseStart('TC04')!;
+    expect(start.conversation).toHaveLength(3);
+    expect(start.conversation[1]).toEqual({ user: '일이 많은데 뭐부터 해야 할지 모르겠어', tangle: '그럴 땐 제일 작은 것 하나만 먼저 골라 보면 좋아요.', note: null, changed: false });
+    expect(start.conversation[2]).toMatchObject({ user: '발표 자료 디자인 다시 손봐야 하는데 귀찮아', changed: true });
+    expect(start.items).toHaveLength(5);
+    expect(start.memory).toEqual({ conversation: [], organizing: [] });
+  });
+
+  it('첫 턴 케이스는 앞선 대화가 없고, 기억 케이스는 시작 기억 줄을 가진다', () => {
+    expect(caseStart('BT03')!.conversation).toEqual([]);
+    expect(caseStart('ME02')!.memory.organizing).toContain('쪼갤 땐 3개, 첫 단계는 5분 안에 끝나는 크기');
+    expect(caseStart('없는 케이스')).toBeNull();
+  });
+
+  it('대본의 카드·질문 표기는 보이는 말과 표기로 나눈다', () => {
+    expect(tangleLine('보고서 쓰기(30분) 생성 카드, 적용됨 · "보고서 쓰기를 추가해 뒀어요."')).toEqual({ tangle: '보고서 쓰기를 추가해 뒀어요.', note: '보고서 쓰기(30분) 생성 카드, 적용됨' });
+    expect(tangleLine('질문 "보고서 초안 쓰기를 몇 단계로 나눌까요?" (예: 자료 찾기) · 선택지 3단계 / 5단계')).toEqual({ tangle: '보고서 초안 쓰기를 몇 단계로 나눌까요?', note: '선택지 3단계 / 5단계' });
+    expect(tangleLine('그럼 오후로 두면 좋겠어요.')).toEqual({ tangle: '그럼 오후로 두면 좋겠어요.', note: null });
+  });
+
+  it('할 일은 예상 시간·하위 작업, 계획은 날짜·시각·알림을 보인다', () => {
+    expect(itemDetail(CASE_FILE.items.resume!)).toBe('90분 · 하위 작업 3개 중 1개 완료');
+    expect(itemDetail(CASE_FILE.items.dentist!)).toBe('11/6(금) 15:00 · 30분 전 알림');
+    expect(itemDetail(CASE_FILE.items.rehearsal!)).toBe('11/5(목)');
   });
 });
