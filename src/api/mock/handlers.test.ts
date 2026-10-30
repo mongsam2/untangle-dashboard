@@ -116,11 +116,11 @@ describe('cases·stats', () => {
   it('도구 12개 중 예시에 쓰인 도구가 종류와 함께 집계된다', () => {
     const st = h.getStats({});
     const names = st.tools.map((t) => t.tool_name);
-    expect(names).toContain('search_todos');
+    expect(names).toContain('search_items');
     expect(names).toContain('propose_move_todo_to_plan');
     expect(names).toContain('get_today_briefing');
     expect(st.tool_kinds.map((k) => k.value)).toEqual(['query', 'proposal', 'briefing']);
-    expect(st.tools.find((t) => t.tool_name === 'search_plans')!.failed).toBe(3);
+    expect(st.tools.find((t) => t.tool_name === 'search_items')!.failed).toBe(3);
   });
 
   it('가드레일 집계는 층별 검사·차단 건수를 준다', () => {
