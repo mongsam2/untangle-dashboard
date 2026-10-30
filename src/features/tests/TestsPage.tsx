@@ -9,18 +9,18 @@ import { CompareView } from './CompareView';
 import { NewRunModal } from './NewRunModal';
 import { Dropdown, Tag, type TagTone } from './parts';
 import { RunningView } from './RunningView';
-import { SAMPLE_SET } from './sampleData';
 import { TestSetView } from './TestSetView';
 import { latestDoneRun, RUN_STATUS_LABEL, runLabel, type RunStatus, type TestRun } from './testModel';
+import { CASE_FILE, TEST_SET } from './testSet';
 import s from './Tests.module.css';
 import { useTestRuns } from './useTestRuns';
 
 const STATUS_TONE: Record<RunStatus, TagTone> = { running: 'info', done: 'success', stopped: 'neutral' };
 
 // 테스트 탭. 테스트 셋(케이스 분포와 목록)과 실행 결과(진행 중·결과 비교·케이스 결과)를 오간다.
-// 케이스 파일과 실행 기록은 아직 예시 데이터다(sampleData.ts).
+// 케이스는 케이스 파일(testSet.json)이고, 실행 기록은 아직 예시 데이터다(sampleData.ts).
 export function TestsPage() {
-  const set = SAMPLE_SET;
+  const set = TEST_SET;
   const { runs, start, stop } = useTestRuns();
   const [params, setParams] = useSearchParams();
   const view = readTestView(params);
@@ -51,7 +51,7 @@ export function TestsPage() {
             </div>
             <span className={s.spacer} />
             {view.tab === 'set' && (
-              <Button variant="outline" onClick={() => openCaseFile(set)}>
+              <Button variant="outline" onClick={openCaseFile}>
                 케이스 파일 열기
               </Button>
             )}
@@ -130,9 +130,9 @@ function RunBar({ runs, run, onSelect, onStop }: { runs: TestRun[]; run: TestRun
   );
 }
 
-/** 지금 화면이 보는 케이스 파일을 새 탭에 JSON으로 연다. */
-function openCaseFile(set: typeof SAMPLE_SET) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(set, null, 2)], { type: 'application/json' }));
+/** 케이스 파일을 새 탭에 JSON으로 연다. */
+function openCaseFile() {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(CASE_FILE, null, 2)], { type: 'application/json' }));
   window.open(url, '_blank', 'noopener');
   window.setTimeout(() => URL.revokeObjectURL(url), 60000);
 }

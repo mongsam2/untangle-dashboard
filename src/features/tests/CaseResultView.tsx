@@ -15,6 +15,7 @@ import {
   fmtSeconds,
   fmtUsd,
   listText,
+  memoryText,
   previousText,
   runLabel,
   toCaseFilter,
@@ -113,8 +114,9 @@ function CaseDetail({ run, c }: { run: TestRun; c: TestCase }) {
         <div className={s.setup}>
           <Meta label="이전 대화" value={previousText(c)} />
           <Meta label="존재하는 목록" value={listText(c)} />
-          <Meta label="정답 행동" value={c.expected} wide />
+          <Meta label="시작 기억" value={memoryText(c)} />
         </div>
+        <Meta label="상황" value={c.expected} />
       </section>
       <div className={s.byConfig}>
         {run.configs.map((config, i) => (
@@ -159,10 +161,12 @@ function Attempts({ run, c, config }: { run: TestRun; c: TestCase; config: numbe
         <span className={s.boxLabel}>채점 이유</span>
         <p>{a.reason}</p>
       </div>
-      <div className={s.reply}>
-        <span className={s.boxLabel}>탱글 응답</span>
-        <p>{a.reply}</p>
-      </div>
+      {a.reply && (
+        <div className={s.reply}>
+          <span className={s.boxLabel}>탱글 응답</span>
+          <p>{a.reply}</p>
+        </div>
+      )}
       {a.turnId && (
         <div>
           <Button variant="text" onClick={() => view.openRun(a.turnId!)}>
