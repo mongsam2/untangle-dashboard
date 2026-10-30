@@ -287,7 +287,7 @@ export function configShort(c: TestConfig): string {
   return `${modelLabel(c.model).split(' ').at(-1)} · ${c.effort}`;
 }
 
-/** 체크 항목 하나의 판정. 판정하지 않았으면(앞선 코드 판정 실패·채점 실패·실행 실패) passed가 null이다. */
+/** 체크 항목 하나의 판정. 판정하지 않았으면(채점 실패·실행 실패) passed가 null이다. */
 export interface CheckResult {
   passed: boolean | null;
   /** 실제로 판정한 쪽. 코드 판정으로 적은 항목도 정해진 표기가 아니면 채점 모델이 판정한다. */
@@ -303,7 +303,7 @@ export interface Attempt {
   repeat: number;
   finishedAt: string;
   passed: boolean;
-  /** 품질 점수. 실패한 시도는 채점하지 않는다. */
+  /** 품질 점수. 실패한 시도는 품질 점수가 없다. */
   quality: 1 | 2 | 3 | null;
   latencyMs: number;
   /** 탱글 비용. 단가를 모르는 모델이면 null */

@@ -387,10 +387,9 @@ describe('케이스 파일', () => {
       expect(x.checks.some((k) => k.passed === false)).toBe(!x.passed);
       expect(x.checks[c.checks.findIndex((k) => k.text === '실행 상태 정상')]?.passed).toBe(true);
       expect(x.quality === null).toBe(!x.passed);
-      // 코드 판정에서 틀리면 채점 모델을 부르지 않는다.
-      const codeFailed = x.checks.some((k, i) => k.passed === false && c.checks[i]!.judge === 'code');
-      expect(x.graderCostUsd === null).toBe(codeFailed);
-      if (codeFailed) expect(x.checks.filter((_, i) => c.checks[i]!.judge === 'grader').every((k) => k.passed === null)).toBe(true);
+      // 코드 판정에서 틀려도 채점 모델이 모든 항목을 판정하고, 틀린 항목에만 이유가 있다.
+      expect(x.graderCostUsd).not.toBeNull();
+      expect(x.checks.every((k) => (k.passed === false) === (k.reason !== null))).toBe(true);
     }
   });
 });

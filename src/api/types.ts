@@ -404,6 +404,7 @@ export interface TestAttemptItem {
   /** 단가가 없는 모델이면 null */
   cost_usd: number | null;
   checks: TestCheckResult[];
+  /** 통과면 품질 점수의 이유, 실패면 채점 모델이 쓴 실패 이유 */
   reason: string;
   reply: string;
   turn_id: string | null;
