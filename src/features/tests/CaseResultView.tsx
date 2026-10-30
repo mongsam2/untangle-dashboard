@@ -159,7 +159,7 @@ function Attempts({ run, c, config }: { run: TestRun; c: TestCase; config: numbe
         ))}
       </div>
       <div className={s.reason}>
-        <span className={s.boxLabel}>채점 이유</span>
+        <span className={s.boxLabel}>{a.passed ? '채점 이유' : '실패 이유'}</span>
         <p>{a.reason}</p>
       </div>
       {a.reply && (

@@ -59,7 +59,10 @@ export function CheckRow({ check, result }: { check: TestCheck; result: CheckRes
       <span className={`${s.mark} ${mark}`} aria-label={label}>
         {icon}
       </span>
-      <span className={s.checkText}>{check.text}</span>
+      <span className={s.checkText}>
+        {check.text}
+        {passed === false && result?.reason && <span className={s.checkReason}>{result.reason}</span>}
+      </span>
       <span className={`mono ${s.judge}`}>{JUDGE_LABEL[result?.judgedBy ?? check.judge]}</span>
     </div>
   );

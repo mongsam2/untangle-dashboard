@@ -165,7 +165,7 @@
 /* 체크리스트 한 줄 */
 .check {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   padding: 6px 0;
 }
@@ -202,9 +202,18 @@
   line-height: 1.45;
 }
 
+/* 실패한 체크 항목의 이유. 문구 바로 아래에 둔다. */
+.checkReason {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .judge {
   flex: none;
   font-size: 12px;
+  line-height: 20px;
   color: var(--text-secondary);
 }
 

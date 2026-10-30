@@ -1,6 +1,6 @@
 // 테스트 탭의 예시 실행 데이터. mock 모드에서 탱글 서버의 테스트 실행 대신 쓴다.
 // 케이스는 케이스 파일(testSet.json)을 쓰고, 실행 결과만 고정 씨앗의 난수로 만든다. 예시 시도에는 탱글 응답이 없다.
-import type { Attempt, AttemptCost, Effort, TestCase, TestConfig } from './testModel';
+import type { Attempt, AttemptCost, Effort, Judge, TestCase, TestConfig } from './testModel';
 
 // ── 설정과 비용 ───────────────────────────────────────────────────────
 
@@ -48,6 +48,11 @@ const PASS_REASON: Record<1 | 2 | 3, string> = {
   3: '정답 행동대로 처리했고 문장도 짧고 분명해요.',
   2: '정답 행동대로 처리했어요. 다만 문장이 조금 길어서 2점이에요.',
   1: '처리는 맞지만 무엇을 했는지 알려 주는 말이 없어 1점이에요.',
+};
+
+const CHECK_FAIL_REASON: Record<Judge, string> = {
+  code: '기대한 값과 실제 값이 달라요.',
+  grader: '응답에서 근거를 찾지 못했어요.',
 };
 
 export interface PlannedAttempt extends Omit<Attempt, 'finishedAt'> {
@@ -105,11 +110,12 @@ export function planAttempts(
         const base = attemptCost(config);
         const listSize = c.list.todos + c.list.plans;
         const index = out.length;
-        // 코드 판정에서 틀리면 채점 모델을 부르지 않아 채점 항목은 판정 없음이다.
-        const codeFailed = c.checks.some((check, k) => check.judge === 'code' && failed.has(k));
-        const checks = c.checks.map((check, k) =>
-          codeFailed && check.judge === 'grader' ? { passed: null, judgedBy: null, reason: null } : { passed: !failed.has(k), judgedBy: check.judge, reason: null },
-        );
+        // 코드 판정에서 틀려도 채점 모델이 나머지 항목을 판정한다. 틀린 항목에만 이유를 둔다.
+        const checks = c.checks.map((check, k) => ({
+          passed: !failed.has(k),
+          judgedBy: check.judge,
+          reason: failed.has(k) ? CHECK_FAIL_REASON[check.judge] : null,
+        }));
         out.push({
           caseId: id,
           config: i,
@@ -119,7 +125,7 @@ export function planAttempts(
           quality,
           latencyMs: Math.round(jitter(base.latencyMs + (listSize > 20 ? 900 : listSize > 5 ? 400 : 0) + c.previousMessages * 40, 0.3)),
           costUsd: jitter(base.costUsd * (1 + c.previousMessages * 0.02), 0.2),
-          graderCostUsd: codeFailed ? null : jitter(JUDGE_COST.costUsd, 0.2),
+          graderCostUsd: jitter(JUDGE_COST.costUsd, 0.2),
           checks,
           reason: passed ? PASS_REASON[quality!] : `틀린 체크: ${[...failed].sort((a, b) => a - b).map((k) => c.checks[k]!.text).join(', ')}`,
           reply: '',

@@ -26,7 +26,7 @@ const SUMMARY_COLUMNS: { key: SummaryColumn; label: string; fmt: (x: ConfigSumma
   { key: 'avgLatencyMs', label: '평균 응답', fmt: (x) => fmtSeconds(x.avgLatencyMs) },
   { key: 'p90LatencyMs', label: '느린 10%', fmt: (x) => fmtSeconds(x.p90LatencyMs) },
   { key: 'costPerAttempt', label: '요청당 비용', fmt: (x) => fmtUsd(x.costPerAttempt) },
-  { key: 'costUsd', label: '설정 비용', fmt: (x) => fmtUsd(x.costUsd, 2) },
+  { key: 'costUsd', label: '전체 비용', fmt: (x) => fmtUsd(x.costUsd, 2) },
 ];
 
 const LEGEND = [

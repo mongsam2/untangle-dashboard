@@ -277,7 +277,7 @@
 }
 
 .caseCols {
-  grid-template-columns: 56px minmax(200px, 1fr) 130px 400px 48px 88px 16px;
+  grid-template-columns: 56px minmax(200px, 1fr) 130px 480px 48px 88px 16px;
 }
 
 .progressCols {
@@ -579,7 +579,7 @@
     padding: 12px 4px;
   }
 
-  /* 케이스 표: ID·기능·최근 통과율 / 마지막 요청 / 나머지 카테고리·체크 수 */
+  /* 케이스 표: ID·사용자 요청·최근 통과율 / 마지막 메시지 / 나머지 카테고리·체크 수 */
   .caseCols {
     grid-template-columns: auto auto minmax(0, 1fr) auto 16px;
     grid-template-areas:
