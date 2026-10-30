@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { MOCK_RUNS } from '../../api/mock/fixtures';
-import { buildTimeline, responseLines, viewAt } from './replayModel';
+import { buildTimeline, responseLines, STEP_GAP_MS, viewAt } from './replayModel';
 
 const finished = MOCK_RUNS.find((r) => r.response !== null && r.steps.length > 3)!;
 const unfinished = MOCK_RUNS.find((r) => r.response === null);
@@ -12,6 +12,17 @@ test('타임라인은 사용자 입력으로 시작해 단계 순서대로 늘�
   for (let i = 1; i < tl.beats.length; i++) expect(tl.beats[i]!.t >= tl.beats[i - 1]!.t).toBeTruthy();
   expect(tl.beats.filter((b) => b.kind === 'step').length).toBe(finished.steps.length);
   expect(tl.finished).toBeTruthy();
+});
+
+test('단계는 앞 박자가 끝난 뒤 최소 간격을 두고 하나씩 나온다', () => {
+  const tl = buildTimeline(finished);
+  for (let i = 1; i < tl.beats.length; i++) {
+    const prev = tl.beats[i - 1]!;
+    const cur = tl.beats[i]!;
+    if (cur.kind !== 'step') continue;
+    const prevEnd = prev.kind === 'step' ? prev.t + Math.max(prev.step.duration_ms, 0) : prev.t;
+    expect(cur.t - prevEnd).toBeGreaterThanOrEqual(STEP_GAP_MS);
+  }
 });
 
 test('재생 위치 0에서는 입력만, 끝에서는 응답까지 보인다', () => {

@@ -8,6 +8,8 @@ import { displaySteps, type DisplayStep } from '../run-detail/displaySteps';
  * 재생 모델. 실행 하나를 시간 축 위의 박자(beat)로 펼치고, 재생 위치에서 보이는 화면을 계산한다.
  * 박자는 사용자 입력(0ms) → 단계들(기록된 시작 시각) → 최종 응답(총 소요시간) 순서다.
  * 단계의 started_at은 실행 started_at 기준 상대 시각으로 바꾸고, 기록이 비어 있으면 소요시간을 이어 붙인다.
+ * 가드레일·도구 단계는 몇 ms 만에 끝나 기록 시각대로면 한꺼번에 뜨므로, 앞 단계가 끝난 뒤 STEP_GAP_MS만큼은 띄운다.
+ * 그만큼 재생 시간이 기록된 소요시간보다 길어질 수 있다.
  */
 
 export type ChatLine =
@@ -28,7 +30,8 @@ export interface Timeline {
   finished: boolean;
 }
 
-const MIN_GAP_MS = 20;
+/** 앞 단계가 끝나고 다음 박자가 나오기까지 최소 간격(1배속 기준). */
+export const STEP_GAP_MS = 400;
 
 function relativeStart(run: RunDetailResponse['run'], step: AgentStep): number | null {
   const t0 = Date.parse(run.started_at);
@@ -41,13 +44,13 @@ function relativeStart(run: RunDetailResponse['run'], step: AgentStep): number |
 export function buildTimeline(detail: RunDetailResponse): Timeline {
   const steps = displaySteps(detail.run, detail.steps);
   const beats: Beat[] = [{ t: 0, kind: 'user' }];
-  // 첫 단계는 입력 직후에 온다. 기록 시각이 입력과 같아도 입력이 먼저 보이게 한 박자 띄운다.
-  let cursor = MIN_GAP_MS;
+  // 첫 단계도 입력이 먼저 보이게 한 박자 띄운다.
+  let cursor = STEP_GAP_MS;
   for (const step of steps) {
     const rel = relativeStart(detail.run, step);
     const t = Math.max(rel ?? cursor, cursor);
     beats.push({ t, kind: 'step', step });
-    cursor = t + Math.max(step.duration_ms, 0) + MIN_GAP_MS;
+    cursor = t + Math.max(step.duration_ms, 0) + STEP_GAP_MS;
   }
   const finished = detail.response !== null;
   const total = finished ? Math.max(detail.run.duration_ms ?? cursor, cursor) : cursor;
