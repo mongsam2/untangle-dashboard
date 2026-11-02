@@ -9,6 +9,7 @@ test('탱글 서버가 남기는 가드레일 이름마다 설명이 있다', ()
     ['output', 'length'],
     ['output', 'references'],
     ['output', 'card_count'],
+    ['output', 'actions'],
     ['output', 'missing_cards'],
     ['limit', 'time'],
     ['limit', 'model_turns'],

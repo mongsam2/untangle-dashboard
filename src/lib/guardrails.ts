@@ -35,13 +35,18 @@ const FIXED: Record<string, GuardrailInfo> = {
     onBlock: OUTPUT_BLOCK,
   },
   'output.references': {
-    checks: '응답에 붙인 카드와 선택지에 건 할 일이 이번 대화에서 실제로 만들었거나 조회한 것인지 확인해요. 지어낸 카드·실패한 카드를 막아요.',
+    checks: '선택지에 건 할 일이 탱글이 받은 목록·조회 결과나 사용자가 고른 항목인지 확인해요. 지어낸 할 일을 막아요.',
     onBlock: OUTPUT_BLOCK,
   },
   'output.card_count': {
-    checks: '제안 카드는 4개, 정보 카드는 정해진 개수까지만 붙였는지 확인해요.',
+    checks: '같은 할 일끼리 합친 뒤 제안 카드는 4장, 오늘 브리핑은 1장까지인지 확인해요.',
     onBlock: OUTPUT_BLOCK,
   },
+  'output.actions': {
+    checks: '탱글이 응답에 담은 카드·브리핑·기억 고치기를 순서대로 실행해서 모두 성공했는지 확인해요. 없는 할 일을 바꾸거나 계획에 날짜를 빠뜨린 걸 막아요.',
+    onBlock: '앱에는 아직 아무것도 안 보내고 몇 번째가 왜 실패했는지 알려 탱글에게 한 번 고쳐 내게 해요. 또 걸리면 카드 없이 "답변을 정리하지 못했어요" 안내로 끝나요.',
+  },
+  // 2026-11-02 이전 기록의 검사 이름이다. 카드를 actions로 받으면서 빠뜨릴 카드가 없어졌다.
   'output.missing_cards': {
     checks: '이번 대화에서 준비한 제안 카드를 응답에 빠뜨리지 않았는지 확인해요. 카드 없이 "추가해뒀어요"라고만 답하는 걸 막아요.',
     onBlock: OUTPUT_BLOCK,
@@ -58,7 +63,7 @@ const FIXED: Record<string, GuardrailInfo> = {
 
 const TOOL_ARGUMENTS: GuardrailInfo = {
   checks: '도구를 실행하기 전에 인자가 정해진 형식인지, 대상이 그 사용자 것인지, 계획엔 날짜가 있는지 같은 규칙을 지켰는지 확인해요.',
-  onBlock: '도구를 실행하지 않고 오류를 탱글에게 돌려줘요. 탱글은 고쳐서 다시 부르거나 사용자에게 알려요.',
+  onBlock: '도구를 실행하지 않아요. 조회 도구면 오류를 탱글에게 돌려주고, 응답에 담은 카드·기억 고치기면 응답 전체를 한 번 고쳐 내게 해요.',
 };
 
 const TOOL_RESULT: GuardrailInfo = {
