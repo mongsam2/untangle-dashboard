@@ -362,10 +362,13 @@ describe('케이스 파일', () => {
     for (const conv of Object.values(CASE_FILE.conversations)) expect(conv.turns).toBeLessThanOrEqual(CASE_FILE.script.length);
   });
 
-  it('모든 값이 카테고리에 있고, 케이스마다 실행 상태 체크가 있다', () => {
+  it('모든 값이 카테고리에 있고, 도구 실패가 정답 경로인 케이스 말고는 실행 상태 체크가 있다', () => {
+    // ME20은 기억 한도 초과(LIMIT_EXCEEDED)를 받은 뒤 다시 쓰는 것이 정답이라 실행 상태가 정상으로 남지 않는다.
+    const toolFailureExpected = new Set(['ME20']);
     for (const c of cases) {
       for (const cat of CATEGORIES) for (const value of caseValues(c, cat.key)) expect(valueOf(cat.key, value), `${c.id} ${cat.key}`).toBeDefined();
-      expect(c.checks.some((k) => k.text === '실행 상태 정상' && k.judge === 'code'), c.id).toBe(true);
+      const hasStatus = c.checks.some((k) => k.text === '실행 상태 정상' && k.judge === 'code');
+      expect(hasStatus, c.id).toBe(!toolFailureExpected.has(c.id));
     }
   });
 
@@ -395,7 +398,8 @@ describe('케이스 파일', () => {
       // 통과한 시도는 모든 체크를 지키고, 실패한 시도는 실행 상태 말고 다른 체크를 하나 이상 틀린다.
       expect(x.checks.every((k) => k.passed === true)).toBe(x.passed);
       expect(x.checks.some((k) => k.passed === false)).toBe(!x.passed);
-      expect(x.checks[c.checks.findIndex((k) => k.text === '실행 상태 정상')]?.passed).toBe(true);
+      const normal = c.checks.findIndex((k) => k.text === '실행 상태 정상');
+      if (normal >= 0) expect(x.checks[normal]?.passed).toBe(true);
       expect(x.quality === null).toBe(!x.passed);
       // 코드 판정에서 틀려도 채점 모델이 모든 항목을 판정하고, 틀린 항목에만 이유가 있다.
       expect(x.graderCostUsd).not.toBeNull();
