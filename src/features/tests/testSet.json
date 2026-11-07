@@ -3748,7 +3748,7 @@
     {
       "id": "ME19",
       "message": "나에 대해 기억한 거 다 잊어줘",
-      "situation": "기억 두 섹션에 모두 6줄이 있음. 두 섹션을 모두 비워야 함.",
+      "situation": "기억 두 섹션에 모두 6줄이 있음. 두 섹션을 모두 비워야 함. 줄을 한 번에 지우든 나눠 지우든 결과만 봄.",
       "features": [
         "memory_only"
       ],
@@ -3759,10 +3759,10 @@
       "list": "small",
       "startMemory": "all",
       "conversation": null,
-      "tools": "update_memory ×2",
+      "tools": "update_memory",
       "checks": [
         {
-          "text": "도구 update_memory ×2",
+          "text": "카드 없음",
           "judge": "code"
         },
         {
